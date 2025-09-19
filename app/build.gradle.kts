@@ -40,7 +40,7 @@ android {
 }
 
 dependencies {
-    implementation(libs.google.maps)
+    implementation(libs.okhttp)
     implementation(libs.osmdroid)
     implementation(libs.androidx.core.ktx)
     implementation(libs.androidx.lifecycle.runtime.ktx)
