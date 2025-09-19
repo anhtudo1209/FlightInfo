@@ -155,10 +155,10 @@ public class MapsActivity extends AppCompatActivity {
                             double lat = plane.optDouble(6, 0.0);
                             double lon = plane.optDouble(5, 0.0);
                             String callsign = plane.optString(1, "Unknown");
-
+                            double heading = plane.optDouble(10,0.0);
                             if (lat == 0.0 && lon == 0.0) continue;
 
-                            addPlaneMarker(lat, lon, callsign);
+                            addPlaneMarker(lat, lon, callsign, heading);
                         }
                         mapView.invalidate();
                     });
@@ -172,15 +172,16 @@ public class MapsActivity extends AppCompatActivity {
 
     // ----------------------------
     // 🔹 Vẽ máy bay lên bản đồ
-    private void addPlaneMarker(double lat, double lon, String title) {
+    private void addPlaneMarker(double lat, double lon, String title, double heading) {
         GeoPoint point = new GeoPoint(lat, lon);
         Marker marker = new Marker(mapView);
         marker.setPosition(point);
         marker.setTitle(title);
 
         Drawable icon = getResources().getDrawable(R.drawable.ic_plane);
+        icon.setTint(0xFF2196F3);
         marker.setIcon(icon);
-
+        marker.setRotation((float) heading);
         mapView.getOverlays().add(marker);
     }
 }
