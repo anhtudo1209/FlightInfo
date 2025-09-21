@@ -5,6 +5,7 @@ import android.os.Bundle;
 import android.util.Log;
 
 import androidx.appcompat.app.AppCompatActivity;
+import androidx.core.content.res.ResourcesCompat;
 
 import org.json.JSONArray;
 import org.json.JSONObject;
@@ -45,11 +46,11 @@ public class MapsActivity extends AppCompatActivity {
         // Khởi tạo MapView
         mapView = findViewById(R.id.map);
         mapView.setMultiTouchControls(true);
-        mapView.getController().setZoom(7.0);
+        mapView.getController().setZoom(10.0);
         mapView.getController().setCenter(new GeoPoint(21.0285, 105.8542)); // Hà Nội
 
         // Xin token đầu tiên
-        fetchAccessToken();
+        getPlanesWithValidToken();
     }
 
     // ----------------------------
@@ -178,7 +179,7 @@ public class MapsActivity extends AppCompatActivity {
         marker.setPosition(point);
         marker.setTitle(title);
 
-        Drawable icon = getResources().getDrawable(R.drawable.ic_plane);
+        Drawable icon = ResourcesCompat.getDrawable(getResources(), R.drawable.ic_plane, getTheme());
         icon.setTint(0xFF2196F3);
         marker.setIcon(icon);
         marker.setRotation((float) heading);
