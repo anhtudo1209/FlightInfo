@@ -13,8 +13,10 @@ appcompat = "1.7.1"
 material = "1.13.0"
 activity = "1.11.0"
 constraintlayout = "2.2.1"
-
+play-services-location = "21.3.0"
 [libraries]
+
+play-services-location = { module = "com.google.android.gms:play-services-location", version.ref = "play-services-location" }
 okhttp = "com.squareup.okhttp3:okhttp:5.1.0"
 androidx-core-ktx = { group = "androidx.core", name = "core-ktx", version.ref = "coreKtx" }
 junit = { group = "junit", name = "junit", version.ref = "junit" }

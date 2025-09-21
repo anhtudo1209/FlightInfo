@@ -40,6 +40,7 @@ android {
 }
 
 dependencies {
+    implementation(libs.play.services.location)
     implementation(libs.okhttp)
     implementation(libs.osmdroid)
     implementation(libs.androidx.core.ktx)
