@@ -1,0 +1,192 @@
+<?xml version="1.0" encoding="utf-8"?>
+<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    android:id="@+id/fragmentRoot"
+    android:layout_width="match_parent"
+    android:layout_height="match_parent"
+    android:orientation="vertical"
+    android:background="@android:color/white">
+
+    <!-- drag handle (visual) -->
+    <View
+        android:layout_width="36dp"
+        android:layout_height="5dp"
+        android:layout_gravity="center"
+        android:layout_marginTop="8dp"
+        android:layout_marginBottom="8dp"
+        android:background="@android:color/darker_gray"/>
+
+    <!-- Header: flight & airline -->
+    <LinearLayout
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:orientation="vertical"
+        android:paddingStart="12dp"
+        android:paddingEnd="12dp"
+        android:paddingBottom="8dp">
+
+        <TextView
+            android:id="@+id/textBasicInfo"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:text="Flight: -"
+            android:textSize="18sp"
+            android:textStyle="bold" />
+
+        <TextView
+            android:id="@+id/textAirline"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:text="-"
+            android:textSize="13sp"
+            android:layout_marginTop="2dp"/>
+    </LinearLayout>
+
+    <!-- route + quick cards -->
+    <LinearLayout
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:orientation="horizontal"
+        android:paddingStart="12dp"
+        android:paddingEnd="12dp"
+        android:paddingBottom="8dp"
+        android:gravity="center_vertical">
+
+        <LinearLayout
+            android:layout_width="0dp"
+            android:layout_height="wrap_content"
+            android:layout_weight="1"
+            android:orientation="vertical">
+
+            <TextView
+                android:id="@+id/textRoute"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:text="- → -"
+                android:textSize="15sp"
+                android:textStyle="bold"/>
+
+            <TextView
+                android:id="@+id/textProgress"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:text="Status: -"
+                android:textSize="12sp"/>
+        </LinearLayout>
+
+        <LinearLayout
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:orientation="vertical"
+            android:layout_marginStart="8dp">
+            <TextView
+                android:id="@+id/textAlt"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:text="ALT\n-"
+                android:gravity="center"
+                android:padding="6dp"
+                android:background="@android:color/darker_gray"
+                android:textColor="@android:color/white"/>
+
+            <TextView
+                android:id="@+id/textSpeed"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:text="SPD\n-"
+                android:gravity="center"
+                android:padding="6dp"
+                android:layout_marginTop="6dp"
+                android:background="@android:color/darker_gray"
+                android:textColor="@android:color/white"/>
+
+            <TextView
+                android:id="@+id/textReg"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:text="REG\n-"
+                android:gravity="center"
+                android:padding="6dp"
+                android:layout_marginTop="6dp"
+                android:background="@android:color/darker_gray"
+                android:textColor="@android:color/white"/>
+        </LinearLayout>
+    </LinearLayout>
+
+    <!-- big scroll area for details -->
+    <ScrollView
+        android:id="@+id/detailScroll"
+        android:layout_width="match_parent"
+        android:layout_height="0dp"
+        android:layout_weight="1"
+        android:paddingStart="12dp"
+        android:paddingEnd="12dp"
+        android:paddingTop="8dp"
+        android:paddingBottom="24dp">
+
+        <LinearLayout
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:orientation="vertical">
+
+            <TextView
+                android:id="@+id/detailHeader"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:text="Detailed info"
+                android:textStyle="bold"
+                android:paddingBottom="6dp"
+                android:textSize="16sp"/>
+
+            <!-- Departure -->
+            <TextView android:layout_width="match_parent" android:layout_height="wrap_content" android:text="Departure" android:textStyle="bold" />
+            <LinearLayout android:layout_width="match_parent" android:layout_height="wrap_content" android:orientation="vertical" android:paddingBottom="8dp">
+                <TextView android:id="@+id/dep_airport" android:layout_width="match_parent" android:layout_height="wrap_content" android:text="Airport: -" />
+                <TextView android:id="@+id/dep_codes" android:layout_width="match_parent" android:layout_height="wrap_content" android:text="IATA / ICAO: - / -" />
+                <TextView android:id="@+id/dep_terminal" android:layout_width="match_parent" android:layout_height="wrap_content" android:text="Terminal / Gate: - / -" />
+                <TextView android:id="@+id/dep_baggage" android:layout_width="match_parent" android:layout_height="wrap_content" android:text="Baggage / Delay: - / -" />
+                <TextView android:id="@+id/dep_times" android:layout_width="match_parent" android:layout_height="wrap_content" android:text="Scheduled / Estimated / Actual: - / - / -" />
+                <TextView android:id="@+id/dep_runways" android:layout_width="match_parent" android:layout_height="wrap_content" android:text="Estimated runway / Actual runway: - / -" />
+            </LinearLayout>
+
+            <!-- Arrival -->
+            <TextView android:layout_width="match_parent" android:layout_height="wrap_content" android:text="Arrival" android:textStyle="bold" />
+            <LinearLayout android:layout_width="match_parent" android:layout_height="wrap_content" android:orientation="vertical" android:paddingBottom="8dp">
+                <TextView android:id="@+id/arr_airport" android:layout_width="match_parent" android:layout_height="wrap_content" android:text="Airport: -" />
+                <TextView android:id="@+id/arr_codes" android:layout_width="match_parent" android:layout_height="wrap_content" android:text="IATA / ICAO: - / -" />
+                <TextView android:id="@+id/arr_terminal" android:layout_width="match_parent" android:layout_height="wrap_content" android:text="Terminal / Gate: - / -" />
+                <TextView android:id="@+id/arr_baggage" android:layout_width="match_parent" android:layout_height="wrap_content" android:text="Baggage / Delay: - / -" />
+                <TextView android:id="@+id/arr_times" android:layout_width="match_parent" android:layout_height="wrap_content" android:text="Scheduled / Estimated / Actual: - / - / -" />
+                <TextView android:id="@+id/arr_runways" android:layout_width="match_parent" android:layout_height="wrap_content" android:text="Estimated runway / Actual runway: - / -" />
+            </LinearLayout>
+
+            <!-- Flight & Airline -->
+            <TextView android:layout_width="match_parent" android:layout_height="wrap_content" android:text="Flight and Airline" android:textStyle="bold" />
+            <LinearLayout android:layout_width="match_parent" android:layout_height="wrap_content" android:orientation="vertical" android:paddingBottom="8dp">
+                <TextView android:id="@+id/flight_number" android:layout_width="match_parent" android:layout_height="wrap_content" android:text="Number / IATA / ICAO: - / - / -" />
+                <TextView android:id="@+id/flight_codeshared" android:layout_width="match_parent" android:layout_height="wrap_content" android:text="Codeshared: -" />
+                <TextView android:id="@+id/airline_name" android:layout_width="match_parent" android:layout_height="wrap_content" android:text="Airline: - (IATA: - / ICAO: -)" />
+            </LinearLayout>
+
+            <!-- Aircraft -->
+            <TextView android:layout_width="match_parent" android:layout_height="wrap_content" android:text="Aircraft" android:textStyle="bold" />
+            <LinearLayout android:layout_width="match_parent" android:layout_height="wrap_content" android:orientation="vertical" android:paddingBottom="8dp">
+                <TextView android:id="@+id/aircraft_reg" android:layout_width="match_parent" android:layout_height="wrap_content" android:text="Registration: -" />
+                <TextView android:id="@+id/aircraft_codes" android:layout_width="match_parent" android:layout_height="wrap_content" android:text="ICAO / IATA: - / -" />
+                <TextView android:id="@+id/aircraft_model" android:layout_width="match_parent" android:layout_height="wrap_content" android:text="Model: -" />
+            </LinearLayout>
+
+            <!-- Live -->
+            <TextView android:layout_width="match_parent" android:layout_height="wrap_content" android:text="Live (dynamic)" android:textStyle="bold" />
+            <LinearLayout android:layout_width="match_parent" android:layout_height="wrap_content" android:orientation="vertical" android:paddingBottom="8dp">
+                <TextView android:id="@+id/live_latlon" android:layout_width="match_parent" android:layout_height="wrap_content" android:text="Lat / Lon: - / -" />
+                <TextView android:id="@+id/live_alt" android:layout_width="match_parent" android:layout_height="wrap_content" android:text="Altitude: -" />
+                <TextView android:id="@+id/live_speed" android:layout_width="match_parent" android:layout_height="wrap_content" android:text="Speed H / V: - / -" />
+                <TextView android:id="@+id/live_heading" android:layout_width="match_parent" android:layout_height="wrap_content" android:text="Heading: -" />
+                <TextView android:id="@+id/live_isground" android:layout_width="match_parent" android:layout_height="wrap_content" android:text="IsGround: -" />
+                <TextView android:id="@+id/live_updated" android:layout_width="match_parent" android:layout_height="wrap_content" android:text="Updated: -" />
+            </LinearLayout>
+
+        </LinearLayout>
+    </ScrollView>
+
+</LinearLayout>

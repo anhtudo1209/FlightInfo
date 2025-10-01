@@ -7,11 +7,6 @@ import android.graphics.drawable.Drawable;
 import android.os.Bundle;
 import android.os.Handler;
 import android.util.Log;
-import android.view.View;
-import android.widget.Button;
-import android.widget.LinearLayout;
-import android.widget.ScrollView;
-import android.widget.TextView;
 
 import androidx.annotation.NonNull;
 import androidx.appcompat.app.AppCompatActivity;
@@ -21,7 +16,6 @@ import androidx.core.content.res.ResourcesCompat;
 
 import com.google.android.gms.location.FusedLocationProviderClient;
 import com.google.android.gms.location.LocationServices;
-import com.google.android.material.bottomsheet.BottomSheetBehavior;
 
 import org.json.JSONArray;
 import org.json.JSONObject;
@@ -57,29 +51,6 @@ import okhttp3.RequestBody;
 import okhttp3.Response;
 
 public class MapsActivity extends AppCompatActivity {
-    // bottom sheet UI
-    private BottomSheetBehavior<LinearLayout> bottomSheetBehavior;
-    private LinearLayout bottomSheet;
-    private TextView textBasicInfo;
-    private TextView textAirline;   // thêm nếu muốn hiển thị hãng
-    private TextView textRoute;
-    // removed old textDetail
-    private ScrollView detailScroll;
-    private Button btnSeeMore;
-
-    // mini cards
-    private TextView textAlt;
-    private TextView textSpeed;
-    private TextView textReg;
-    private TextView textProgress;
-
-    // Structured detail views (match the IDs in activity_maps.xml)
-    private TextView depAirportTv, depCodesTv, depTerminalTv, depBaggageTv, depTimesTv, depRunwaysTv, depTimezoneTv;
-    private TextView arrAirportTv, arrCodesTv, arrTerminalTv, arrBaggageTv, arrTimesTv, arrRunwaysTv, arrTimezoneTv;
-    private TextView flightNumberTv, flightCodesharedTv, airlineNameTv;
-    private TextView aircraftRegTv, aircraftCodesTv, aircraftModelTv;
-    private TextView liveLatlonTv, liveAltTv, liveSpeedTv, liveHeadingTv, liveIsGroundTv, liveUpdatedTv;
-
     private MapView mapView;
     private OkHttpClient client = new OkHttpClient();
 
@@ -157,90 +128,8 @@ public class MapsActivity extends AppCompatActivity {
 
         MapEventsOverlay overlayEvents = new MapEventsOverlay(mReceive);
         mapView.getOverlays().add(overlayEvents);
-        // --- Bottom sheet init ---
-        bottomSheet = findViewById(R.id.bottomSheet);
-        textBasicInfo = findViewById(R.id.textBasicInfo);
-        textRoute = findViewById(R.id.textRoute);
-        // removed old textDetail binding
-        detailScroll = findViewById(R.id.detailScroll);
-        btnSeeMore = findViewById(R.id.btnSeeMore);
-        textAirline = findViewById(R.id.textAirline);
-        textAlt = findViewById(R.id.textAlt);
-        textSpeed = findViewById(R.id.textSpeed);
-        textReg = findViewById(R.id.textReg);
-        textProgress = findViewById(R.id.textProgress);
 
-        // --- bind structured detail textviews ---
-        depAirportTv     = findViewById(R.id.dep_airport);
-        depCodesTv       = findViewById(R.id.dep_codes);
-        depTerminalTv    = findViewById(R.id.dep_terminal);
-        depBaggageTv     = findViewById(R.id.dep_baggage);
-        depTimesTv       = findViewById(R.id.dep_times);
-        depRunwaysTv     = findViewById(R.id.dep_runways);
-        depTimezoneTv    = findViewById(R.id.dep_timezone);
-
-        arrAirportTv     = findViewById(R.id.arr_airport);
-        arrCodesTv       = findViewById(R.id.arr_codes);
-        arrTerminalTv    = findViewById(R.id.arr_terminal);
-        arrBaggageTv     = findViewById(R.id.arr_baggage);
-        arrTimesTv       = findViewById(R.id.arr_times);
-        arrRunwaysTv     = findViewById(R.id.arr_runways);
-        arrTimezoneTv    = findViewById(R.id.arr_timezone);
-
-        flightNumberTv   = findViewById(R.id.flight_number);
-        flightCodesharedTv = findViewById(R.id.flight_codeshared);
-        airlineNameTv    = findViewById(R.id.airline_name);
-
-        aircraftRegTv    = findViewById(R.id.aircraft_reg);
-        aircraftCodesTv  = findViewById(R.id.aircraft_codes);
-        aircraftModelTv  = findViewById(R.id.aircraft_model);
-
-        liveLatlonTv     = findViewById(R.id.live_latlon);
-        liveAltTv        = findViewById(R.id.live_alt);
-        liveSpeedTv      = findViewById(R.id.live_speed);
-        liveHeadingTv    = findViewById(R.id.live_heading);
-        liveIsGroundTv   = findViewById(R.id.live_isground);
-        liveUpdatedTv    = findViewById(R.id.live_updated);
-
-        // behavior
-        bottomSheetBehavior = BottomSheetBehavior.from(bottomSheet);
-        bottomSheetBehavior.setHideable(true);
-
-        // start completely hidden
-        bottomSheet.setVisibility(View.GONE);
-        bottomSheetBehavior.setState(BottomSheetBehavior.STATE_HIDDEN);
-
-        // See more button: expand/collapse detail area
-        btnSeeMore.setOnClickListener(v -> {
-            if (bottomSheetBehavior.getState() == BottomSheetBehavior.STATE_EXPANDED) {
-                bottomSheetBehavior.setState(BottomSheetBehavior.STATE_COLLAPSED);
-                detailScroll.setVisibility(View.GONE);
-                btnSeeMore.setText("See more");
-            } else {
-                bottomSheetBehavior.setState(BottomSheetBehavior.STATE_EXPANDED);
-                detailScroll.setVisibility(View.VISIBLE);
-                btnSeeMore.setText("Hide");
-            }
-        });
-
-        // ensure visibility toggled when hidden
-        bottomSheetBehavior.addBottomSheetCallback(new BottomSheetBehavior.BottomSheetCallback() {
-            @Override
-            public void onStateChanged(@NonNull View bottomSheetView, int newState) {
-                if (newState == BottomSheetBehavior.STATE_HIDDEN) {
-                    bottomSheet.setVisibility(View.GONE);
-                    detailScroll.setVisibility(View.GONE);
-                    btnSeeMore.setText("See more");
-                } else {
-                    if (bottomSheet.getVisibility() != View.VISIBLE) {
-                        bottomSheet.setVisibility(View.VISIBLE);
-                    }
-                }
-            }
-            @Override public void onSlide(@NonNull View bottomSheetView, float v) {}
-        });
-
-        // clear detail placeholders at startup
+        // ensure fragment (if previously shown) is cleared
         clearDetailFields();
 
         // Gọi API lần đầu
@@ -434,23 +323,34 @@ public class MapsActivity extends AppCompatActivity {
             planeMarkers.put(icao24, marker);
         }
     }
+
+    // helper: return the current FlightDetailSheet instance if present (or null)
+    private FlightDetailFragment getDetailSheet() {
+        try {
+            return (FlightDetailFragment) getSupportFragmentManager().findFragmentByTag("flight_detail");
+        } catch (Exception e) {
+            return null;
+        }
+    }
+
     private void handleMarkerClick(String icao24, String callsign, GeoPoint currentPos) {
         selectedPLane = icao24;
 
         // immediate minimal UI (so user doesn't only see XML defaults)
         final String quickCS = (callsign == null || callsign.isEmpty()) ? icao24 : callsign.trim();
         runOnUiThread(() -> {
-            if (textBasicInfo != null) textBasicInfo.setText("Flight: " + quickCS);
-            if (textRoute != null) textRoute.setText("(Loading...)");
-            // clear structured detail fields (instead of textDetail)
-            clearDetailFields();
-            if (bottomSheetBehavior != null) {
-                bottomSheet.setVisibility(View.VISIBLE);
-                bottomSheetBehavior.setPeekHeight(dpToPx(120));
-                bottomSheetBehavior.setState(BottomSheetBehavior.STATE_COLLAPSED);
+            // Clear any structured fields in the fragment if present (keeps UI tidy)
+            FlightDetailFragment existing = getDetailSheet();
+            if (existing != null && existing.isAdded()) {
+                existing.clearFields();
             }
-        });
 
+            // show placeholder fragment immediately (will be updated when API returns)
+            try {
+                FlightDetailFragment placeholder = FlightDetailFragment.newInstance("{}");
+                placeholder.show(getSupportFragmentManager(), "flight_detail");
+            } catch (Exception ignored) {}
+        });
         // clear old lines and fetch real details
         clearLines();
 
@@ -487,8 +387,6 @@ public class MapsActivity extends AppCompatActivity {
             // If no usable callsign, show fallback and return (or try other ways)
             Log.w("Aviationstack", "Empty/Unknown callsign for " + icao24 + ", will attempt fallback or abort.");
             runOnUiThread(() -> {
-                if (textBasicInfo != null) textBasicInfo.setText("Flight: " + icao24);
-                if (textRoute != null) textRoute.setText("(No schedule found)");
                 showNoAviationstackRecord();
             });
             return;
@@ -509,7 +407,6 @@ public class MapsActivity extends AppCompatActivity {
             public void onFailure(@NonNull Call call, @NonNull IOException e) {
                 Log.e("Aviationstack", "API failed", e);
                 runOnUiThread(() -> {
-                    if (textRoute != null) textRoute.setText("(Aviationstack request failed)");
                     showNoAviationstackRecord();
                 });
             }
@@ -520,10 +417,7 @@ public class MapsActivity extends AppCompatActivity {
                 Log.d("Aviationstack", "Response code=" + response.code() + " body=" + body);
                 if (!response.isSuccessful()) {
                     Log.e("Aviationstack", "API error: " + response.code());
-                    runOnUiThread(() -> {
-                        if (textRoute != null) textRoute.setText("(Aviationstack error)");
-                        showNoAviationstackRecord();
-                    });
+                    runOnUiThread(() -> showNoAviationstackRecord());
                     return;
                 }
                 try {
@@ -545,13 +439,27 @@ public class MapsActivity extends AppCompatActivity {
                         processArrival(finalMatch.optJSONObject("arrival"), finalIcao24, finalCurrentPos);
 
                         // update UI using final copies
-                        runOnUiThread(() -> showBasicInfo(finalIcao24, finalMatch));
+                        // show fragment (full details) using finalMatch JSON
+                        runOnUiThread(() -> {
+                            try {
+                                FlightDetailFragment existing = getDetailSheet();
+                                if (existing != null && existing.isAdded()) {
+                                    existing.updateFromJson(finalMatch);
+                                } else {
+                                    FlightDetailFragment sheet = FlightDetailFragment.newInstance(finalMatch.toString());
+                                    sheet.show(getSupportFragmentManager(), "flight_detail");
+                                }
+                            } catch (Exception ignored) {}
+                        });
                         return;
                     } else {
                         // No matches — show not found (we rely on flight_icao only)
                         runOnUiThread(() -> {
-                            if (textRoute != null) textRoute.setText("(No schedule found)");
                             showNoAviationstackRecord();
+                            try {
+                                FlightDetailFragment sheet = FlightDetailFragment.newInstance("{}"); // placeholder with no data
+                                sheet.show(getSupportFragmentManager(), "flight_detail");
+                            } catch (Exception ignored) {}
                         });
                     }
                 } catch (Exception e) {
@@ -779,58 +687,35 @@ public class MapsActivity extends AppCompatActivity {
             currentFuturePath = null;
         }
 
-        // ẩn bottom sheet nếu đang hiển thị
-        if (bottomSheetBehavior != null && bottomSheetBehavior.getState() != BottomSheetBehavior.STATE_HIDDEN) {
-            bottomSheetBehavior.setState(BottomSheetBehavior.STATE_HIDDEN);
-            // visibility será set to GONE in callback
-        }
+        // dismiss the flight detail fragment if visible
+        try {
+            FlightDetailFragment sheet = getDetailSheet();
+            if (sheet != null) sheet.dismiss();
+        } catch (Exception ignored) {}
         mapView.invalidate();
     }
 
     private void clearDetailFields() {
-        // set all structured detail TextViews to placeholders
+        // ask the fragment (if visible) to clear itself
         runOnUiThread(() -> {
             try {
-                if (depAirportTv != null) depAirportTv.setText("Airport: -");
-                if (depCodesTv != null) depCodesTv.setText("IATA / ICAO: - / -");
-                if (depTerminalTv != null) depTerminalTv.setText("Terminal / Gate: - / -");
-                if (depBaggageTv != null) depBaggageTv.setText("Baggage / Delay: - / -");
-                if (depTimesTv != null) depTimesTv.setText("Scheduled / Estimated / Actual: - / - / -");
-                if (depRunwaysTv != null) depRunwaysTv.setText("Estimated runway / Actual runway: - / -");
-                if (depTimezoneTv != null) depTimezoneTv.setText("Timezone: -");
-
-                if (arrAirportTv != null) arrAirportTv.setText("Airport: -");
-                if (arrCodesTv != null) arrCodesTv.setText("IATA / ICAO: - / -");
-                if (arrTerminalTv != null) arrTerminalTv.setText("Terminal / Gate: - / -");
-                if (arrBaggageTv != null) arrBaggageTv.setText("Baggage / Delay: - / -");
-                if (arrTimesTv != null) arrTimesTv.setText("Scheduled / Estimated / Actual: - / - / -");
-                if (arrRunwaysTv != null) arrRunwaysTv.setText("Estimated runway / Actual runway: - / -");
-                if (arrTimezoneTv != null) arrTimezoneTv.setText("Timezone: -");
-
-                if (flightNumberTv != null) flightNumberTv.setText("Number / IATA / ICAO: - / - / -");
-                if (flightCodesharedTv != null) flightCodesharedTv.setText("Codeshared: -");
-                if (airlineNameTv != null) airlineNameTv.setText("Airline: - (IATA: - / ICAO: -)");
-
-                if (aircraftRegTv != null) aircraftRegTv.setText("Registration: -");
-                if (aircraftCodesTv != null) aircraftCodesTv.setText("ICAO / IATA: - / -");
-                if (aircraftModelTv != null) aircraftModelTv.setText("Model: -");
-
-                if (liveLatlonTv != null) liveLatlonTv.setText("Lat / Lon: - / -");
-                if (liveAltTv != null) liveAltTv.setText("Altitude: -");
-                if (liveSpeedTv != null) liveSpeedTv.setText("Speed H / V: - / -");
-                if (liveHeadingTv != null) liveHeadingTv.setText("Heading: -");
-                if (liveIsGroundTv != null) liveIsGroundTv.setText("IsGround: -");
-                if (liveUpdatedTv != null) liveUpdatedTv.setText("Updated: -");
+                FlightDetailFragment sheet = getDetailSheet();
+                if (sheet != null && sheet.isAdded()) {
+                    sheet.clearFields();
+                }
             } catch (Exception ignored) {}
         });
     }
 
     private void showNoAviationstackRecord() {
-        // show a short 'no record' message on route/progress and clear details
+        // show a short 'no record' message in the fragment (if visible) and clear details
         runOnUiThread(() -> {
-            if (textRoute != null) textRoute.setText("(No Aviationstack record)");
-            if (textProgress != null) textProgress.setText("Status: No info");
-            clearDetailFields();
+            try {
+                FlightDetailFragment sheet = getDetailSheet();
+                if (sheet != null && sheet.isAdded()) {
+                    sheet.clearFields();
+                }
+            } catch (Exception ignored) {}
         });
     }
 
@@ -855,184 +740,27 @@ public class MapsActivity extends AppCompatActivity {
                 });
     }
     private void showBasicInfo(String icao24, JSONObject flight) {
-        try {
-            // --- top-level flight fields ---
-            String flightDate = flight.optString("flight_date", "No info");
-            String flightStatus = flight.optString("flight_status", "No info");
-
-            // --- nested objects ---
-            JSONObject dep = flight.optJSONObject("departure");
-            JSONObject arr = flight.optJSONObject("arrival");
-            JSONObject airline = flight.optJSONObject("airline");
-            JSONObject flightObj = flight.optJSONObject("flight");
-            JSONObject aircraft = flight.optJSONObject("aircraft");
-            JSONObject live = flight.optJSONObject("live");
-
-            // --- departure fields (use "No info" when missing) ---
-            String depAirport   = dep != null ? dep.optString("airport", "No info") : "No info";
-            String depIata      = dep != null ? dep.optString("iata", "No info") : "No info";
-            String depIcao      = dep != null ? dep.optString("icao", "No info") : "No info";
-            String depTerminal  = dep != null ? dep.optString("terminal", "No info") : "No info";
-            String depGate      = dep != null ? dep.optString("gate", "No info") : "No info";
-            String depBaggage   = dep != null ? dep.optString("baggage", "No info") : "No info";
-            String depScheduled = dep != null ? dep.optString("scheduled", "No info") : "No info";
-            String depEstimated = dep != null ? dep.optString("estimated", "No info") : "No info";
-            String depActual    = dep != null ? dep.optString("actual", "No info") : "No info";
-            String depDelay     = dep != null ? (dep.has("delay") ? String.valueOf(dep.opt("delay")) : "No info") : "No info";
-            String depEstRunway = dep != null ? dep.optString("estimated_runway", "No info") : "No info";
-            String depActRunway = dep != null ? dep.optString("actual_runway", "No info") : "No info";
-            String depTimezone  = dep != null ? dep.optString("timezone", "No info") : "No info";
-
-            // --- arrival fields ---
-            String arrAirport   = arr != null ? arr.optString("airport", "No info") : "No info";
-            String arrIata      = arr != null ? arr.optString("iata", "No info") : "No info";
-            String arrIcao      = arr != null ? arr.optString("icao", "No info") : "No info";
-            String arrTerminal  = arr != null ? arr.optString("terminal", "No info") : "No info";
-            String arrGate      = arr != null ? arr.optString("gate", "No info") : "No info";
-            String arrBaggage   = arr != null ? arr.optString("baggage", "No info") : "No info";
-            String arrScheduled = arr != null ? arr.optString("scheduled", "No info") : "No info";
-            String arrEstimated = arr != null ? arr.optString("estimated", "No info") : "No info";
-            String arrActual    = arr != null ? arr.optString("actual", "No info") : "No info";
-            String arrDelay     = arr != null ? (arr.has("delay") ? String.valueOf(arr.opt("delay")) : "No info") : "No info";
-            String arrEstRunway = arr != null ? arr.optString("estimated_runway", "No info") : "No info";
-            String arrActRunway = arr != null ? arr.optString("actual_runway", "No info") : "No info";
-            String arrTimezone  = arr != null ? arr.optString("timezone", "No info") : "No info";
-
-            // --- airline & flight objects ---
-            String airlineName  = airline != null ? airline.optString("name", "No info") : "No info";
-            String airlineIata  = airline != null ? airline.optString("iata", "No info") : "No info";
-            String airlineIcao  = airline != null ? airline.optString("icao", "No info") : "No info";
-
-            String flightNumber = flightObj != null ? flightObj.optString("number", "No info") : "No info";
-            String flightIata   = flightObj != null ? flightObj.optString("iata", "No info") : "No info";
-            String flightIcao   = flightObj != null ? flightObj.optString("icao", icao24) : icao24;
-            String codeshared   = flightObj != null ? (flightObj.has("codeshared") && !flightObj.isNull("codeshared") ? flightObj.optString("codeshared","No info") : "No info") : "No info";
-
-            // --- aircraft object ---
-            String aircraftReg   = aircraft != null ? aircraft.optString("registration", "No info") : "No info";
-            String aircraftIcao  = aircraft != null ? aircraft.optString("icao", "No info") : "No info";
-            String aircraftIata  = aircraft != null ? aircraft.optString("iata", "No info") : "No info";
-            String aircraftModel = aircraft != null ? aircraft.optString("model", "No info") : "No info"; // sometimes model key varies
-
-            // --- live object (dynamic) ---
-            String liveLatitude  = "No info";
-            String liveLongitude = "No info";
-            String liveAltitude  = "No info";
-            String liveSpeedH    = "No info";
-            String liveSpeedV    = "No info";
-            String liveHeading   = "No info";
-            String liveIsGround  = "No info";
-            String liveUpdated   = "No info";
-            if (live != null) {
-                double lat = live.optDouble("latitude", Double.NaN);
-                double lon = live.optDouble("longitude", Double.NaN);
-                liveLatitude  = Double.isNaN(lat) ? "No info" : String.valueOf(lat);
-                liveLongitude = Double.isNaN(lon) ? "No info" : String.valueOf(lon);
-
-                double alt = live.optDouble("altitude", Double.NaN);
-                liveAltitude = Double.isNaN(alt) ? "No info" : String.valueOf(alt);
-
-                double spdH = live.optDouble("speed_horizontal", Double.NaN);
-                liveSpeedH = Double.isNaN(spdH) ? "No info" : String.valueOf(spdH);
-
-                double spdV = live.optDouble("speed_vertical", Double.NaN);
-                liveSpeedV = Double.isNaN(spdV) ? "No info" : String.valueOf(spdV);
-
-                double hdg = live.optDouble("heading", Double.NaN);
-                liveHeading = Double.isNaN(hdg) ? "No info" : String.valueOf(hdg);
-
-                if (live.has("is_ground")) {
-                    liveIsGround = String.valueOf(live.optBoolean("is_ground", false));
+        // Delegate to fragment: update if present, otherwise show new fragment with data
+        runOnUiThread(() -> {
+            try {
+                FlightDetailFragment sheet = getDetailSheet();
+                if (sheet != null && sheet.isAdded()) {
+                    sheet.updateFromJson(flight);
+                } else {
+                    try {
+                        FlightDetailFragment newSheet = FlightDetailFragment.newInstance(flight.toString());
+                        newSheet.show(getSupportFragmentManager(), "flight_detail");
+                    } catch (Exception ignored) {}
                 }
-                liveUpdated = live.optString("updated", "No info");
+            } catch (Exception uiEx) {
+                Log.e("UI", "Error updating fragment UI", uiEx);
             }
+        });
+    }
 
-            // --- Compose UI strings ---
-            String displayCallsign = (flightIata != null && !flightIata.equals("No info")) ? flightIata : flightIcao;
-            String basic = "Flight: " + displayCallsign + "\n"
-                    + "Airline: " + airlineName + "\n"
-                    + "Date: " + flightDate + "\n"
-                    + "Status: " + flightStatus;
-
-            String fromText = depAirport + " (" + depIata + "/" + depIcao + ")";
-            String toText = arrAirport + " (" + arrIata + "/" + arrIcao + ")";
-            String route = fromText + " → " + toText;
-
-            String progress = "Dep scheduled: " + depScheduled + " — Arr scheduled: " + arrScheduled;
-
-            final String finalBasic = basic;
-            final String finalRoute = route;
-            final String finalProgress = progress;
-            final String finalAltitude = liveAltitude;
-            final String finalLongitude = liveLongitude;
-            final String finalSpeed = liveSpeedH;
-            final String finalRegistration = aircraftReg;
-            final String finalAirlineName = airlineName;
-            final String finalHeading = liveHeading;
-            final String finalIsGround = liveIsGround;
-            final String finalUpdated = liveUpdated;
-            final String finalSpeedV = liveSpeedV;
-
-            // --- update UI on main thread ---
-            runOnUiThread(() -> {
-                try {
-                    if (textBasicInfo != null) textBasicInfo.setText(finalBasic);
-                    if (textAirline != null) textAirline.setText(finalAirlineName);
-                    if (textRoute != null) textRoute.setText(finalRoute);
-                    if (textProgress != null) textProgress.setText(finalProgress);
-
-                    if (textAlt != null) textAlt.setText("ALT\n" + (finalAltitude.equals("No info") ? "-" : finalAltitude));
-                    if (textSpeed != null) textSpeed.setText("SPD\n" + (finalSpeed.equals("No info") ? "-" : finalSpeed));
-                    if (textReg != null) textReg.setText("REG\n" + (finalRegistration.equals("No info") ? "-" : finalRegistration));
-
-                    // Structured detail fields
-                    if (depAirportTv != null) depAirportTv.setText("Airport: " + depAirport);
-                    if (depCodesTv != null) depCodesTv.setText("IATA / ICAO: " + depIata + " / " + depIcao);
-                    if (depTerminalTv != null) depTerminalTv.setText("Terminal / Gate: " + depTerminal + " / " + depGate);
-                    if (depBaggageTv != null) depBaggageTv.setText("Baggage / Delay: " + depBaggage + " / " + depDelay);
-                    if (depTimesTv != null) depTimesTv.setText("Scheduled / Estimated / Actual: " + depScheduled + " / " + depEstimated + " / " + depActual);
-                    if (depRunwaysTv != null) depRunwaysTv.setText("Estimated runway / Actual runway: " + depEstRunway + " / " + depActRunway);
-                    if (depTimezoneTv != null) depTimezoneTv.setText("Timezone: " + depTimezone);
-
-                    if (arrAirportTv != null) arrAirportTv.setText("Airport: " + arrAirport);
-                    if (arrCodesTv != null) arrCodesTv.setText("IATA / ICAO: " + arrIata + " / " + arrIcao);
-                    if (arrTerminalTv != null) arrTerminalTv.setText("Terminal / Gate: " + arrTerminal + " / " + arrGate);
-                    if (arrBaggageTv != null) arrBaggageTv.setText("Baggage / Delay: " + arrBaggage + " / " + arrDelay);
-                    if (arrTimesTv != null) arrTimesTv.setText("Scheduled / Estimated / Actual: " + arrScheduled + " / " + arrEstimated + " / " + arrActual);
-                    if (arrRunwaysTv != null) arrRunwaysTv.setText("Estimated runway / Actual runway: " + arrEstRunway + " / " + arrActRunway);
-                    if (arrTimezoneTv != null) arrTimezoneTv.setText("Timezone: " + arrTimezone);
-
-                    if (flightNumberTv != null) flightNumberTv.setText("Number / IATA / ICAO: " + flightNumber + " / " + flightIata + " / " + flightIcao);
-                    if (flightCodesharedTv != null) flightCodesharedTv.setText("Codeshared: " + codeshared);
-                    if (airlineNameTv != null) airlineNameTv.setText("Airline: " + airlineName + " (IATA: " + airlineIata + " / ICAO: " + airlineIcao + ")");
-
-                    if (aircraftRegTv != null) aircraftRegTv.setText("Registration: " + aircraftReg);
-                    if (aircraftCodesTv != null) aircraftCodesTv.setText("ICAO / IATA: " + aircraftIcao + " / " + aircraftIata);
-                    if (aircraftModelTv != null) aircraftModelTv.setText("Model: " + aircraftModel);
-
-                    if (liveLatlonTv != null) liveLatlonTv.setText("Lat / Lon: " + finalAltitude + " / " + finalLongitude);
-                    if (liveAltTv != null) liveAltTv.setText("Altitude: " + (finalAltitude.equals("No info") ? "-" : finalAltitude));
-                    if (liveSpeedTv != null) liveSpeedTv.setText("Speed H / V: " + finalSpeed + " / " + finalSpeedV);
-                    if (liveHeadingTv != null) liveHeadingTv.setText("Heading: " + finalHeading);
-                    if (liveIsGroundTv != null) liveIsGroundTv.setText("IsGround: " + finalIsGround);
-                    if (liveUpdatedTv != null) liveUpdatedTv.setText("Updated: " + finalUpdated);
-
-                    // show bottom sheet like before
-                    if (bottomSheetBehavior != null) {
-                        bottomSheet.setVisibility(View.VISIBLE);
-                        bottomSheetBehavior.setPeekHeight(dpToPx(120));
-                        detailScroll.setVisibility(View.GONE);
-                        btnSeeMore.setText("See more");
-                        bottomSheetBehavior.setState(BottomSheetBehavior.STATE_COLLAPSED);
-                    }
-                } catch (Exception uiEx) {
-                    Log.e("UI", "Error updating bottom sheet UI", uiEx);
-                }
-            });
-
-        } catch (Exception e) {
-            Log.e("UI", "Show info error", e);
-        }
+    // small helper to produce dash for missing coordinate (keeps code tidy)
+    private String finalLatitudeOrDash(String lat) {
+        return (lat == null || lat.equals("No info")) ? "-" : lat;
     }
 
     private int dpToPx(int dp) {
