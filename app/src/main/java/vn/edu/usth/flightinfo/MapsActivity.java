@@ -61,7 +61,7 @@ public class MapsActivity extends AppCompatActivity {
     private Polyline currentFuturePath = null;
 
     // 🔑 Thông tin OAuth2 (thay bằng của bạn)
-    private static final String AVIATIONSTACK_KEY = "fac89fbb28ecbc6405d77408ccd2ff8a";
+    private static final String AVIATIONSTACK_KEY = "4f9fc2f6e6718f86805710054b5caa42";
     private static final String CLIENT_ID = "doanhtu1209-api-client";
     private static final String CLIENT_SECRET = "7LhSIF85OAyPGvS6NRDEcRXUuQ4oK4Lj";
 
@@ -400,7 +400,6 @@ public class MapsActivity extends AppCompatActivity {
             return null;
         }
     }
-
     private void handleMarkerClick(String icao24, String callsign, GeoPoint currentPos) {
         selectedPLane = icao24;
 
@@ -418,40 +417,39 @@ public class MapsActivity extends AppCompatActivity {
             }
         }
 
-        // Store OpenSky data for later use
         final JSONObject finalOpenSkyData = openSkyData;
 
-        // immediate minimal UI (so user doesn't only see XML defaults)
-        final String quickCS = (callsign == null || callsign.isEmpty()) ? icao24 : callsign.trim();
-        runOnUiThread(() -> {
-            // Clear any structured fields in the fragment if present (keeps UI tidy)
-            FlightDetailFragment existing = getDetailSheet();
-            if (existing != null && existing.isAdded()) {
-                existing.clearFields(); // reuse the fragment already shown
-            } else {
-                // only create/show placeholder if there is no existing fragment shown
-                try {
-                    FlightDetailFragment placeholder = FlightDetailFragment.newInstance("{}");
-                    placeholder.show(getSupportFragmentManager(), "flight_detail");
-                } catch (Exception ignored) {}
-            }
-        });
-        // clear old lines and fetch real details
+        // Clear old lines and dismiss any existing fragment FIRST
         clearLines();
 
-        // caching check + fetch as you already had
+        // FIXED: Show EXACTLY ONE placeholder (empty) - this will be updated later by cache/API
+        // No check for existing here - after clearLines(), none should exist
+        try {
+            FlightDetailFragment placeholder = FlightDetailFragment.newInstance("{}");
+            placeholder.show(getSupportFragmentManager(), "flight_detail");
+
+            // FIXED: Force synchronous commit so the fragment is immediately added to the manager
+            // This prevents timing race on cache hit (getDetailSheet() will now find it)
+            getSupportFragmentManager().executePendingTransactions();
+
+            Log.d("FlightSheet", "Placeholder shown and committed synchronously for " + icao24);
+        } catch (Exception e) {
+            Log.e("FlightSheet", "Failed to show placeholder for " + icao24, e);
+        }
+
+        // Check cache first (will NOW find the placeholder and update it)
         Long t = flightInfoCacheTime.get(icao24);
         if (t != null && System.currentTimeMillis() - t < FLIGHT_INFO_CACHE_TTL) {
             JSONObject cached = flightInfoCache.get(icao24);
             if (cached != null) {
                 JSONObject arrival = cached.optJSONObject("arrival");
                 processArrival(arrival, icao24, currentPos);
-                // Merge OpenSky data before showing
                 JSONObject mergedData = mergeOpenSkyData(cached, finalOpenSkyData);
-                showBasicInfo(icao24, mergedData);
+                showBasicInfo(icao24, mergedData);  // FIXED: Will now find existing placeholder
                 return;
             }
         }
+        // No cache - fetch async (will update placeholder later)
         fetchFlightInfo(callsign, icao24, currentPos, finalOpenSkyData);
     }
     private JSONObject mergeOpenSkyData(JSONObject aviationstackData, JSONObject openSkyData) {
@@ -542,7 +540,7 @@ public class MapsActivity extends AppCompatActivity {
                 Log.d("Aviationstack", "Response code=" + response.code() + " body=" + body);
                 if (!response.isSuccessful()) {
                     Log.e("Aviationstack", "API error: " + response.code());
-                    runOnUiThread(() -> showNoAviationstackRecord());
+                    showNoAviationstackRecord();  // FIXED: Clears existing (no new sheet)
                     return;
                 }
                 try {
@@ -558,46 +556,34 @@ public class MapsActivity extends AppCompatActivity {
                         flightInfoCache.put(icao24, mergedMatch);
                         flightInfoCacheTime.put(icao24, System.currentTimeMillis());
 
-                        // Make final copies for lambda capture
                         final JSONObject finalMatch = mergedMatch;
                         final String finalIcao24 = icao24;
                         final GeoPoint finalCurrentPos = currentPos;
 
-                        // process arrival (network/UI safe since processArrival queues its own requests)
+                        // process arrival
                         processArrival(finalMatch.optJSONObject("arrival"), finalIcao24, finalCurrentPos);
 
-                        // update UI using final copies
-                        // show fragment (full details) using finalMatch JSON
-                        runOnUiThread(() -> {
-                            try {
-                                FlightDetailFragment existing = getDetailSheet();
-                                if (existing != null && existing.isAdded()) {
-                                    existing.updateFromJson(finalMatch);
-                                } else {
-                                    FlightDetailFragment sheet = FlightDetailFragment.newInstance(finalMatch.toString());
-                                    sheet.show(getSupportFragmentManager(), "flight_detail");
-                                }
-                            } catch (Exception ignored) {}
-                        });
+                        // FIXED: ALWAYS update existing placeholder (no runOnUiThread needed, no new creation)
+                        try {
+                            FlightDetailFragment existing = getDetailSheet();
+                            if (existing != null && existing.isAdded()) {
+                                existing.updateFromJson(finalMatch);
+                                Log.d("FlightSheet", "Updated existing sheet with API data for " + icao24);
+                            } else {
+                                // Edge case: Create if missing (shouldn't happen)
+                                Log.w("FlightSheet", "No existing sheet for API update - creating");
+                                FlightDetailFragment sheet = FlightDetailFragment.newInstance(finalMatch.toString());
+                                sheet.show(getSupportFragmentManager(), "flight_detail");
+                            }
+                        } catch (Exception ignored) {}
                         return;
                     } else {
-                        // No matches — show not found (we rely on flight_icao only)
-                        runOnUiThread(() -> {
-                            showNoAviationstackRecord();
-                            try {
-                                FlightDetailFragment existing = getDetailSheet();
-                                if (existing != null && existing.isAdded()) {
-                                    existing.clearFields();
-                                } else {
-                                    FlightDetailFragment sheet = FlightDetailFragment.newInstance("{}"); // placeholder with no data
-                                    sheet.show(getSupportFragmentManager(), "flight_detail");
-                                }
-                            } catch (Exception ignored) {}
-                        });
+                        // No matches — clear existing
+                        showNoAviationstackRecord();  // FIXED: Clears existing (no new sheet)
                     }
                 } catch (Exception e) {
                     Log.e("Aviationstack", "Parse error", e);
-                    runOnUiThread(() -> showNoAviationstackRecord());
+                    showNoAviationstackRecord();  // FIXED: Clears existing (no new sheet)
                 }
             }
         });
@@ -806,26 +792,22 @@ public class MapsActivity extends AppCompatActivity {
         mapView.invalidate();
     }
     private void clearLines() {
-        // xoá nét liền (flight path)
         if (currentFlightPath != null) {
             mapView.getOverlays().remove(currentFlightPath);
             currentFlightPath = null;
         }
-
-        // xoá nét đứt (future / arrival)
         if (currentFuturePath != null) {
             mapView.getOverlays().remove(currentFuturePath);
             currentFuturePath = null;
         }
-
-        // dismiss the flight detail fragment if visible
         try {
             FlightDetailFragment sheet = getDetailSheet();
-            if (sheet != null) sheet.dismiss();
+            if (sheet != null && sheet.isAdded()) {
+                sheet.dismiss();
+            }
         } catch (Exception ignored) {}
         mapView.invalidate();
     }
-
     private void clearDetailFields() {
         // ask the fragment (if visible) to clear itself
         runOnUiThread(() -> {
@@ -839,16 +821,22 @@ public class MapsActivity extends AppCompatActivity {
     }
 
     private void showNoAviationstackRecord() {
-        // show a short 'no record' message in the fragment (if visible) and clear details
-        runOnUiThread(() -> {
-            try {
-                FlightDetailFragment sheet = getDetailSheet();
-                if (sheet != null && sheet.isAdded()) {
-                    sheet.clearFields();
-                }
-            } catch (Exception ignored) {}
-        });
+        // FIXED: ONLY clear the existing placeholder (never create new - prevents duplicates)
+        // Assume placeholder was shown in handleMarkerClick
+        try {
+            FlightDetailFragment sheet = getDetailSheet();
+            if (sheet != null && sheet.isAdded()) {
+                sheet.clearFields();  // Clears to "No data" state
+                Log.d("FlightSheet", "Cleared existing sheet (no data)");  // Debug log
+            } else {
+                // Edge case: No sheet? Log warning but don't create (avoids spam)
+                Log.w("FlightSheet", "No sheet to clear for no-data state");
+            }
+        } catch (Exception e) {
+            Log.e("FlightSheet", "Error clearing sheet for no data", e);
+        }
     }
+
 
     private void setMapToCurrentLocation() {
         if (ActivityCompat.checkSelfPermission(this, Manifest.permission.ACCESS_FINE_LOCATION)
@@ -871,23 +859,24 @@ public class MapsActivity extends AppCompatActivity {
                 });
     }
     private void showBasicInfo(String icao24, JSONObject flight) {
-        // Delegate to fragment: update if present, otherwise show new fragment with data
-        runOnUiThread(() -> {
-            try {
-                FlightDetailFragment sheet = getDetailSheet();
-                if (sheet != null && sheet.isAdded()) {
-                    sheet.updateFromJson(flight);
-                } else {
-                    try {
-                        FlightDetailFragment newSheet = FlightDetailFragment.newInstance(flight.toString());
-                        newSheet.show(getSupportFragmentManager(), "flight_detail");
-                    } catch (Exception ignored) {}
-                }
-            } catch (Exception uiEx) {
-                Log.e("UI", "Error updating fragment UI", uiEx);
+        // FIXED: ALWAYS update existing placeholder (never create new - prevents duplicates)
+        // Assume placeholder was shown in handleMarkerClick
+        try {
+            FlightDetailFragment sheet = getDetailSheet();
+            if (sheet != null && sheet.isAdded()) {
+                sheet.updateFromJson(flight);
+                Log.d("FlightSheet", "Updated existing sheet with data for " + icao24);
+            } else {
+                // Edge case: No sheet? Create one (shouldn't happen, but safe)
+                Log.w("FlightSheet", "No existing sheet found - creating new for " + icao24);
+                FlightDetailFragment newSheet = FlightDetailFragment.newInstance(flight.toString());
+                newSheet.show(getSupportFragmentManager(), "flight_detail");
             }
-        });
+        } catch (Exception e) {
+            Log.e("FlightSheet", "Error updating sheet for " + icao24, e);
+        }
     }
+
     @Override
     protected void onDestroy() {
         super.onDestroy();
