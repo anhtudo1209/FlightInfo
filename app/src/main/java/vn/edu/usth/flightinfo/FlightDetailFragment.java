@@ -22,7 +22,6 @@ public class FlightDetailFragment extends BottomSheetDialogFragment {
 
     // header + quick fields
     private TextView textBasicInfo, textAirline, textRoute, textProgress, textAlt, textSpeed, textReg;
-
     // structured detail fields (same ids as layout)
     private TextView depAirport, depCodes, depTerminal, depBaggage, depTimes, depRunways;
     private TextView arrAirport, arrCodes, arrTerminal, arrBaggage, arrTimes, arrRunways;
@@ -37,13 +36,11 @@ public class FlightDetailFragment extends BottomSheetDialogFragment {
         f.setArguments(args);
         return f;
     }
-
     public FlightDetailFragment() {}
-
     @NonNull
     @Override
     public Dialog onCreateDialog(@Nullable Bundle savedInstanceState) {
-        BottomSheetDialog dialog = (BottomSheetDialog) super.onCreateDialog(savedInstanceState);
+        BottomSheetDialog dialog = new BottomSheetDialog(requireContext(), R.style.NoDimBottomSheet);
         // allow the dialog to expand to full screen later
         dialog.setOnShowListener(d -> {
             BottomSheetDialog dlog = (BottomSheetDialog) d;
@@ -54,7 +51,7 @@ public class FlightDetailFragment extends BottomSheetDialogFragment {
                 bottomSheet.requestLayout();
                 BottomSheetBehavior<?> behavior = BottomSheetBehavior.from(bottomSheet);
                 // start collapsed; user can expand to full-screen
-                behavior.setPeekHeight((int) (getResources().getDisplayMetrics().density * 120)); // 120dp
+                behavior.setPeekHeight((int) (getResources().getDisplayMetrics().density * 180));
                 behavior.setState(BottomSheetBehavior.STATE_COLLAPSED);
                 behavior.setSkipCollapsed(false);
             }
@@ -122,8 +119,6 @@ public class FlightDetailFragment extends BottomSheetDialogFragment {
 
         return v;
     }
-
-    /** Set UI fields from a flight JSONObject (Aviationstack flight object). */
     /** Set UI fields from a flight JSONObject (Aviationstack flight object). */
     public void updateFromJson(@NonNull JSONObject flight) {
         if (!isAdded() || getView() == null) return;

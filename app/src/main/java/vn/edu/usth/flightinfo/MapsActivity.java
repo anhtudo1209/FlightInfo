@@ -223,8 +223,8 @@ public class MapsActivity extends AppCompatActivity {
         double lamax = box.getLatNorth();
         double lomin = box.getLonWest();
         double lomax = box.getLonEast();
-        String url = "https://opensky-network.org/api/states/all?" + "lamin=" + lamin + "&lomin=" + lomin + "&lamax=" + lamax + "&lomax=" + lomax;
-
+        String url = "https://opensky-network.org/api/states/all?"
+                + "lamin=" + lamin + "&lomin=" + lomin + "&lamax=" + lamax + "&lomax=" + lomax;
 
         Request request = new Request.Builder()
                 .url(url)
@@ -247,39 +247,65 @@ public class MapsActivity extends AppCompatActivity {
                 try {
                     String body = response.body().string();
                     JSONObject json = new JSONObject(body);
-                    JSONArray states = json.optJSONArray("states"); // dùng optJSONArray
+                    final JSONArray states = json.optJSONArray("states");
                     if (states == null) {
                         Log.w("OpenSky", "No states data in response");
                         return;
                     }
 
-
                     runOnUiThread(() -> {
-                        Set<String> seenPlanes = new HashSet<>();
-                        for (int i = 0; i < states.length(); i++) {
-                            JSONArray plane = states.optJSONArray(i);
-                            if (plane == null) continue;
+                        try {
+                            Set<String> seenPlanes = new HashSet<>();
+                            for (int i = 0; i < states.length(); i++) {
+                                JSONArray plane = states.optJSONArray(i);
+                                if (plane == null) continue;
 
-                            String icao24 = plane.optString(0, "");
-                            String callsign = plane.optString(1, "Unknown");
-                            double lon = plane.optDouble(5, 0.0);
-                            double lat = plane.optDouble(6, 0.0);
-                            double heading = plane.optDouble(10, 0.0);
+                                String icao24 = plane.optString(0, "");
+                                String callsign = plane.optString(1, "Unknown");
+                                double lon = plane.optDouble(5, 0.0);
+                                double lat = plane.optDouble(6, 0.0);
+                                Double heading = plane.isNull(10) ? null : plane.optDouble(10);
 
-                            if (lat == 0.0 && lon == 0.0) continue;
+                                // nếu không có tọa độ hợp lệ thì bỏ qua
+                                if (lat == 0.0 && lon == 0.0) continue;
 
-                            updatePlaneMarker(icao24, callsign, lat, lon, heading);
-                            seenPlanes.add(icao24);
-                        }
-                        Iterator<String> it = planeMarkers.keySet().iterator();
-                        while (it.hasNext()) {
-                            String id = it.next();
-                            if (!seenPlanes.contains(id)) {
-                                mapView.getOverlays().remove(planeMarkers.get(id));
-                                it.remove();
+                                // --- Lấy altitude / speed từ OpenSky state array (an toàn với null)
+                                double baroAlt = Double.NaN;
+                                double geoAlt = Double.NaN;
+                                double speed = Double.NaN;
+                                try {
+                                    // index thường gặp: 7 = baro_altitude, 9 = velocity (m/s), 13 = geo_altitude
+                                    baroAlt = plane.isNull(7) ? Double.NaN : plane.optDouble(7, Double.NaN);
+                                    speed   = plane.isNull(9) ? Double.NaN : plane.optDouble(9, Double.NaN);
+                                    geoAlt  = plane.isNull(13) ? Double.NaN : plane.optDouble(13, Double.NaN);
+                                } catch (Exception ignored) {}
+
+                                // ưu tiên geoAlt nếu có, nếu không dùng baroAlt
+                                double altToPass = !Double.isNaN(geoAlt) ? geoAlt : baroAlt;
+
+                                // gọi updatePlaneMarker với alt + speed
+                                updatePlaneMarker(icao24, callsign, lat, lon, heading, altToPass, speed);
+
+                                seenPlanes.add(icao24);
                             }
+
+                            // remove markers no longer in view
+                            Iterator<String> it = planeMarkers.keySet().iterator();
+                            while (it.hasNext()) {
+                                String id = it.next();
+                                if (!seenPlanes.contains(id)) {
+                                    Marker toRemove = planeMarkers.get(id);
+                                    if (toRemove != null) {
+                                        mapView.getOverlays().remove(toRemove);
+                                    }
+                                    it.remove();
+                                }
+                            }
+
+                            mapView.invalidate();
+                        } catch (Exception uiEx) {
+                            Log.e("OpenSky", "Error updating map overlays", uiEx);
                         }
-                        mapView.invalidate();
                     });
 
                 } catch (Exception e) {
@@ -288,40 +314,83 @@ public class MapsActivity extends AppCompatActivity {
             }
         });
     }
-
-    // ----------------------------
-    // 🔹 Cập nhật hoặc thêm máy bay
-    private void updatePlaneMarker(String icao24, String title, double lat, double lon, double heading) {
+    // updatePlaneMarker với heading là Double (nullable)
+    // Chú ý: cần import org.json.JSONObject ở đầu file nếu chưa có.
+    private void updatePlaneMarker(String icao24, String title, double lat, double lon, Double heading,
+                                   double geoAlt, double speed) {
         GeoPoint point = new GeoPoint(lat, lon);
         Marker marker;
         if (planeMarkers.containsKey(icao24)) {
             // Di chuyển marker cũ
             marker = planeMarkers.get(icao24);
             marker.setPosition(point);
-            marker.setRotation((float) heading);
+
+            try {
+                Object relObj = marker.getRelatedObject();
+                JSONObject rel = (relObj instanceof JSONObject) ? (JSONObject) relObj : new JSONObject();
+                if (!Double.isNaN(geoAlt)) rel.put("geo_alt", geoAlt);
+                if (!Double.isNaN(speed)) rel.put("speed", speed);
+                rel.put("ts", System.currentTimeMillis());
+                marker.setRelatedObject(rel);
+            } catch (Exception e) {
+                Log.w("OpenSky", "Failed to update marker relatedObject", e);
+            }
+
+            // Chỉ cập nhật rotation nếu API trả giá trị hợp lệ (không null)
+            if (heading != null) {
+                float applied = applyHeadingOffset(heading);
+                marker.setRotation(applied);
+                Log.d("OpenSky", "Update existing marker " + icao24 + " heading=" + heading + " applied=" + applied);
+            } else {
+                Log.d("OpenSky", "No heading for " + icao24 + " -> keep previous rotation");
+            }
+
         } else {
             // Tạo marker mới
             marker = new Marker(mapView);
             marker.setPosition(point);
             marker.setTitle(title);
             Drawable icon = ResourcesCompat.getDrawable(getResources(), R.drawable.ic_plane, getTheme());
-            marker.setOnMarkerClickListener((m, mapView) ->{
+            marker.setOnMarkerClickListener((m, mapView) -> {
                 String callsignTrim = title != null ? title.trim() : "";
                 selectedPLane = icao24;
                 fetchFlightTrack(icao24);
                 handleMarkerClick(icao24, callsignTrim, m.getPosition());
-                return false;
+                return true; // consume event — ngăn việc xử lý bổ sung gây duplicate
             });
             if (icon != null) {
                 icon.setTint(0xFF2196F3);
                 marker.setIcon(icon);
             }
             marker.setAnchor(Marker.ANCHOR_CENTER, Marker.ANCHOR_CENTER);
-            marker.setRotation((float) heading);
+
+            // set rotation nếu có heading
+            if (heading != null) {
+                float applied = applyHeadingOffset(heading);
+                marker.setRotation(applied);
+                Log.d("OpenSky", "Create marker " + icao24 + " heading=" + heading + " applied=" + applied);
+            } else {
+                Log.d("OpenSky", "Create marker " + icao24 + " no heading -> default rotation");
+            }
+
+            // Set relatedObject ban đầu (OpenSky values)
+            try {
+                JSONObject rel = new JSONObject();
+                if (!Double.isNaN(geoAlt)) rel.put("geo_alt", geoAlt);
+                if (!Double.isNaN(speed)) rel.put("speed", speed);
+                rel.put("ts", System.currentTimeMillis());
+                marker.setRelatedObject(rel);
+            } catch (Exception e) {
+                Log.w("OpenSky", "Failed to set marker relatedObject", e);
+            }
 
             mapView.getOverlays().add(marker);
             planeMarkers.put(icao24, marker);
         }
+    }
+
+    private float applyHeadingOffset(Double heading) {
+        return (float)((heading % 360.0 + 360.0) % 360.0);
     }
 
     // helper: return the current FlightDetailSheet instance if present (or null)
@@ -336,20 +405,37 @@ public class MapsActivity extends AppCompatActivity {
     private void handleMarkerClick(String icao24, String callsign, GeoPoint currentPos) {
         selectedPLane = icao24;
 
+        // Get OpenSky altitude and speed from the marker's relatedObject
+        JSONObject openSkyData = null;
+        Marker marker = planeMarkers.get(icao24);
+        if (marker != null) {
+            try {
+                Object relObj = marker.getRelatedObject();
+                if (relObj instanceof JSONObject) {
+                    openSkyData = (JSONObject) relObj;
+                }
+            } catch (Exception e) {
+                Log.w("OpenSky", "Failed to get marker relatedObject", e);
+            }
+        }
+
+        // Store OpenSky data for later use
+        final JSONObject finalOpenSkyData = openSkyData;
+
         // immediate minimal UI (so user doesn't only see XML defaults)
         final String quickCS = (callsign == null || callsign.isEmpty()) ? icao24 : callsign.trim();
         runOnUiThread(() -> {
             // Clear any structured fields in the fragment if present (keeps UI tidy)
             FlightDetailFragment existing = getDetailSheet();
             if (existing != null && existing.isAdded()) {
-                existing.clearFields();
+                existing.clearFields(); // reuse the fragment already shown
+            } else {
+                // only create/show placeholder if there is no existing fragment shown
+                try {
+                    FlightDetailFragment placeholder = FlightDetailFragment.newInstance("{}");
+                    placeholder.show(getSupportFragmentManager(), "flight_detail");
+                } catch (Exception ignored) {}
             }
-
-            // show placeholder fragment immediately (will be updated when API returns)
-            try {
-                FlightDetailFragment placeholder = FlightDetailFragment.newInstance("{}");
-                placeholder.show(getSupportFragmentManager(), "flight_detail");
-            } catch (Exception ignored) {}
         });
         // clear old lines and fetch real details
         clearLines();
@@ -361,14 +447,55 @@ public class MapsActivity extends AppCompatActivity {
             if (cached != null) {
                 JSONObject arrival = cached.optJSONObject("arrival");
                 processArrival(arrival, icao24, currentPos);
-                showBasicInfo(icao24, cached);
+                // Merge OpenSky data before showing
+                JSONObject mergedData = mergeOpenSkyData(cached, finalOpenSkyData);
+                showBasicInfo(icao24, mergedData);
                 return;
             }
         }
-        fetchFlightInfo(callsign, icao24, currentPos);
+        fetchFlightInfo(callsign, icao24, currentPos, finalOpenSkyData);
     }
+    private JSONObject mergeOpenSkyData(JSONObject aviationstackData, JSONObject openSkyData) {
+        if (openSkyData == null) {
+            return aviationstackData;
+        }
 
+        try {
+            // Create a copy to avoid modifying the cached data
+            JSONObject merged = new JSONObject(aviationstackData.toString());
 
+            // Get or create "live" object to store OpenSky altitude and speed
+            JSONObject live = merged.optJSONObject("live");
+            if (live == null) {
+                live = new JSONObject();
+                merged.put("live", live);
+            }
+
+            // Override with OpenSky altitude (convert meters to feet)
+            if (openSkyData.has("geo_alt") && !openSkyData.isNull("geo_alt")) {
+                double altMeters = openSkyData.getDouble("geo_alt");
+                double altFeet = altMeters * 3.28084; // Convert meters to feet
+                live.put("altitude", altFeet);
+            }
+
+            // Override with OpenSky speed (convert m/s to km/h)
+            if (openSkyData.has("speed") && !openSkyData.isNull("speed")) {
+                double speedMs = openSkyData.getDouble("speed");
+                double speedKmh = speedMs * 3.6; // Convert m/s to km/h
+                live.put("speed_horizontal", speedKmh);
+            }
+
+            // Add timestamp from OpenSky
+            if (openSkyData.has("ts")) {
+                live.put("updated", openSkyData.getString("ts"));
+            }
+
+            return merged;
+        } catch (Exception e) {
+            Log.e("OpenSky", "Error merging OpenSky data", e);
+            return aviationstackData;
+        }
+    }
     private String cleanCallsign(String callsign) {
         if (callsign == null) return "";
         String s = callsign.trim().replaceAll("\\s+", "");
@@ -376,7 +503,7 @@ public class MapsActivity extends AppCompatActivity {
         return s.toUpperCase();
     }
 
-    private void fetchFlightInfo(String callsign, String icao24, GeoPoint currentPos) {
+    private void fetchFlightInfo(String callsign, String icao24, GeoPoint currentPos, JSONObject openSkyData) {
         // defensive: check callsign
         if (callsign == null) callsign = "";
 
@@ -426,12 +553,15 @@ public class MapsActivity extends AppCompatActivity {
                     if (data != null && data.length() > 0) {
                         JSONObject match = data.getJSONObject(0);
 
-                        // update caches (safe to do here)
-                        flightInfoCache.put(icao24, match);
+                        // Merge OpenSky altitude and speed into the Aviationstack data
+                        JSONObject mergedMatch = mergeOpenSkyData(match, openSkyData);
+
+                        // update caches with merged data
+                        flightInfoCache.put(icao24, mergedMatch);
                         flightInfoCacheTime.put(icao24, System.currentTimeMillis());
 
                         // Make final copies for lambda capture
-                        final JSONObject finalMatch = match;
+                        final JSONObject finalMatch = mergedMatch;
                         final String finalIcao24 = icao24;
                         final GeoPoint finalCurrentPos = currentPos;
 
@@ -457,8 +587,13 @@ public class MapsActivity extends AppCompatActivity {
                         runOnUiThread(() -> {
                             showNoAviationstackRecord();
                             try {
-                                FlightDetailFragment sheet = FlightDetailFragment.newInstance("{}"); // placeholder with no data
-                                sheet.show(getSupportFragmentManager(), "flight_detail");
+                                FlightDetailFragment existing = getDetailSheet();
+                                if (existing != null && existing.isAdded()) {
+                                    existing.clearFields();
+                                } else {
+                                    FlightDetailFragment sheet = FlightDetailFragment.newInstance("{}"); // placeholder with no data
+                                    sheet.show(getSupportFragmentManager(), "flight_detail");
+                                }
                             } catch (Exception ignored) {}
                         });
                     }
@@ -469,7 +604,6 @@ public class MapsActivity extends AppCompatActivity {
             }
         });
     }
-
     private void fetchFlightTrack(String icao24) {
         String url = "https://opensky-network.org/api/tracks/all" + "?icao24=" + icao24 + "&time=0";
         Request request = new Request.Builder()
@@ -521,7 +655,6 @@ public class MapsActivity extends AppCompatActivity {
             Log.w("Aviationstack", "No IATA/ICAO to lookup for " + icao24);
             return;
         }
-
         // check cache
         Long t = airportCacheTime.get(key);
         if (t != null && System.currentTimeMillis() - t < AIRPORT_CACHE_TTL) {
@@ -757,17 +890,6 @@ public class MapsActivity extends AppCompatActivity {
             }
         });
     }
-
-    // small helper to produce dash for missing coordinate (keeps code tidy)
-    private String finalLatitudeOrDash(String lat) {
-        return (lat == null || lat.equals("No info")) ? "-" : lat;
-    }
-
-    private int dpToPx(int dp) {
-        float density = getResources().getDisplayMetrics().density;
-        return Math.round(dp * density);
-    }
-
     @Override
     protected void onDestroy() {
         super.onDestroy();
