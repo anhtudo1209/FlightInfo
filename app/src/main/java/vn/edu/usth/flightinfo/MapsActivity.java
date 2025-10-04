@@ -61,7 +61,7 @@ public class MapsActivity extends AppCompatActivity {
     private Polyline currentFuturePath = null;
 
     // 🔑 Thông tin OAuth2 (thay bằng của bạn)
-    private static final String AVIATIONSTACK_KEY = "4ef4a111e11025eba6e3c6d2318a3ec5";
+    private static final String AVIATIONSTACK_KEY = "fac89fbb28ecbc6405d77408ccd2ff8a";
     private static final String CLIENT_ID = "doanhtu1209-api-client";
     private static final String CLIENT_SECRET = "7LhSIF85OAyPGvS6NRDEcRXUuQ4oK4Lj";
 
@@ -87,7 +87,6 @@ public class MapsActivity extends AppCompatActivity {
         super.onCreate(savedInstanceState);
         Configuration.getInstance().setUserAgentValue(getPackageName());
         setContentView(R.layout.activity_maps);
-
         // Khởi tạo MapView
         mapView = findViewById(R.id.map);
         mapView.setMultiTouchControls(true);
@@ -474,15 +473,14 @@ public class MapsActivity extends AppCompatActivity {
             // Override with OpenSky altitude (convert meters to feet)
             if (openSkyData.has("geo_alt") && !openSkyData.isNull("geo_alt")) {
                 double altMeters = openSkyData.getDouble("geo_alt");
-                double altFeet = altMeters * 3.28084; // Convert meters to feet
-                live.put("altitude", altFeet);
+                live.put("altitude", Math.round(altMeters));
             }
 
             // Override with OpenSky speed (convert m/s to km/h)
             if (openSkyData.has("speed") && !openSkyData.isNull("speed")) {
                 double speedMs = openSkyData.getDouble("speed");
                 double speedKmh = speedMs * 3.6; // Convert m/s to km/h
-                live.put("speed_horizontal", speedKmh);
+                live.put("speed_horizontal", Math.round(speedKmh));
             }
 
             // Add timestamp from OpenSky

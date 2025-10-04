@@ -228,8 +228,8 @@ public class FlightDetailFragment extends BottomSheetDialogFragment {
                     if (textAirline != null) textAirline.setText(airlineNameS);
                     if (textRoute != null) textRoute.setText(route);
                     if (textProgress != null) textProgress.setText(progress);
-                    if (textAlt != null) textAlt.setText("ALT\n" + (liveAltS[0].equals("No info") ? "-" : liveAltS[0]));
-                    if (textSpeed != null) textSpeed.setText("SPD\n" + (liveSpeedH[0].equals("No info") ? "-" : liveSpeedH[0]));
+                    if (textAlt != null) textAlt.setText("ALTITUDE\n" + (liveAltS[0].equals("No info") ? "-" : liveAltS[0]));
+                    if (textSpeed != null) textSpeed.setText("SPEED\n" + (liveSpeedH[0].equals("No info") ? "-" : liveSpeedH[0]));
                     if (textReg != null) textReg.setText("REG\n" + (aircraftRegS.equals("No info") ? "-" : aircraftRegS));
 
                     // structured fields
@@ -277,8 +277,8 @@ public class FlightDetailFragment extends BottomSheetDialogFragment {
                 if (textAirline != null) textAirline.setText("-");
                 if (textRoute != null) textRoute.setText("- → -");
                 if (textProgress != null) textProgress.setText("Status: -");
-                if (textAlt != null) textAlt.setText("ALT\n-");
-                if (textSpeed != null) textSpeed.setText("SPD\n-");
+                if (textAlt != null) textAlt.setText("ALTITUDE\n-");
+                if (textSpeed != null) textSpeed.setText("SPEED\n-");
                 if (textReg != null) textReg.setText("REG\n-");
 
                 if (depAirport != null) depAirport.setText("Airport: -");
