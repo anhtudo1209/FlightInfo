@@ -84,6 +84,7 @@ public class MapsActivity extends AppCompatActivity {
     private static final long FLIGHT_INFO_CACHE_TTL = 5 * 60 * 1000L;
     private Handler handler = new Handler();
     private static final int LOCATION_PERMISSION_REQUEST = 1000;
+    private boolean isActive = false;
     EditText searchEditText;
     ImageButton searchButton;
     private FrameLayout resultsContainer;
@@ -124,6 +125,16 @@ public class MapsActivity extends AppCompatActivity {
             else {
                 resultsContainer.setVisibility(View.GONE);
                 Toast.makeText(this, "Please enter a flight number or country", Toast.LENGTH_SHORT).show();
+            }
+        });
+        ImageButton myLocationButton = findViewById(R.id.myLocationButton);
+        myLocationButton.setOnClickListener(v -> {
+            if (ContextCompat.checkSelfPermission(this, Manifest.permission.ACCESS_FINE_LOCATION)
+                    != PackageManager.PERMISSION_GRANTED) {
+                ActivityCompat.requestPermissions(this,
+                        new String[]{Manifest.permission.ACCESS_FINE_LOCATION}, LOCATION_PERMISSION_REQUEST);
+            } else {
+                setMapToCurrentLocation();
             }
         });
         mapView.addMapListener(new DelayedMapListener(new MapListener() {
@@ -170,10 +181,7 @@ public class MapsActivity extends AppCompatActivity {
         // ensure fragment (if previously shown) is cleared
         clearDetailFields();
 
-        // Gọi API lần đầu
-        getPlanesWithValidToken();
-        // Lặp lại sau mỗi 10 giây
-        handler.postDelayed(updateTask, 10000);
+        // Polling will start in onStart to be lifecycle-aware
     }
 
     // ----------------------------
@@ -278,6 +286,9 @@ public class MapsActivity extends AppCompatActivity {
                 }
 
                 try {
+                    if (!isActive) {
+                        return;
+                    }
                     String body = response.body().string();
                     JSONObject json = new JSONObject(body);
                     final JSONArray states = json.optJSONArray("states");
@@ -287,6 +298,7 @@ public class MapsActivity extends AppCompatActivity {
                     }
 
                     runOnUiThread(() -> {
+                        if (!isActive) return;
                         try {
                             Set<String> seenPlanes = new HashSet<>();
                             for (int i = 0; i < states.length(); i++) {
@@ -641,6 +653,7 @@ public class MapsActivity extends AppCompatActivity {
                 }
 
                 try {
+                    if (!isActive) return;
                     String body = response.body().string();
                     JSONObject json = new JSONObject(body);
                     JSONArray path = json.getJSONArray("path");
@@ -656,7 +669,7 @@ public class MapsActivity extends AppCompatActivity {
                         }
                     }
 
-                    runOnUiThread(() -> drawFlightPath(points));
+                    runOnUiThread(() -> { if (isActive) drawFlightPath(points); });
 
                 } catch (Exception e) {
                     Log.e("OpenSky", "Track JSON parse error", e);
@@ -681,7 +694,7 @@ public class MapsActivity extends AppCompatActivity {
                 double lon = cachedAirport.optDouble("longitude", 0.0);
                 if (lat != 0.0 || lon != 0.0) {
                     GeoPoint arrivalPoint = new GeoPoint(lat, lon);
-                    runOnUiThread(() -> drawDashedLine(currentPos, arrivalPoint));
+                    runOnUiThread(() -> { if (isActive) drawDashedLine(currentPos, arrivalPoint); });
                     // also update the flightInfoCache arrival coordinates for future use
                     try {
                         JSONObject cachedFlight = flightInfoCache.get(icao24);
@@ -758,7 +771,7 @@ public class MapsActivity extends AppCompatActivity {
                             }
 
                             GeoPoint arrivalPoint = new GeoPoint(lat, lon);
-                            runOnUiThread(() -> drawDashedLine(currentPos, arrivalPoint));
+                            runOnUiThread(() -> { if (isActive) drawDashedLine(currentPos, arrivalPoint); });
                         } else {
                             Log.w("Aviationstack", "Airport record has no coords for " + key);
                         }
@@ -999,7 +1012,6 @@ public class MapsActivity extends AppCompatActivity {
     private void tryOpenMarkerAfterMove(String icao24, String callsign, GeoPoint target, int attempt) {
         if (icao24 == null || icao24.isEmpty()) return;
 
-        // If marker is already present, open immediately
         Marker m = planeMarkers.get(icao24);
         if (m != null) {
             selectedPLane = icao24;
@@ -1016,6 +1028,24 @@ public class MapsActivity extends AppCompatActivity {
         if (attempt < 10) {
             handler.postDelayed(() -> tryOpenMarkerAfterMove(icao24, callsign, target, attempt + 1), 300);
         }
+    }
+
+    @Override
+    protected void onStart() {
+        super.onStart();
+        isActive = true;
+        getPlanesWithValidToken();
+        handler.postDelayed(updateTask, 10000);
+    }
+
+    @Override
+    protected void onStop() {
+        super.onStop();
+        isActive = false;
+        handler.removeCallbacks(updateTask);
+        try {
+            client.dispatcher().cancelAll();
+        } catch (Exception ignored) {}
     }
 
     @Override

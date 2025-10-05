@@ -29,13 +29,22 @@
             android:layout_width="40dp"
             android:layout_height="40dp"
             android:layout_marginStart="8dp"
-            android:src="@android:drawable/ic_menu_search"
-            android:contentDescription="Search" />
+            android:src="@android:drawable/ic_menu_search" />
     </LinearLayout>
     <org.osmdroid.views.MapView
         android:id="@+id/map"
         android:layout_width="match_parent"
         android:layout_height="match_parent" />
+    <ImageButton
+        android:id="@+id/myLocationButton"
+        android:layout_width="56dp"
+        android:layout_height="56dp"
+        android:layout_gravity="bottom|start"
+        android:layout_margin="16dp"
+        android:background="@android:color/transparent"
+        android:src="@android:drawable/ic_menu_mylocation"
+        app:tint="#FF000000"
+        android:elevation="6dp" />
     <FrameLayout
         android:id="@+id/searchResultsContainer"
         android:layout_width="match_parent"
