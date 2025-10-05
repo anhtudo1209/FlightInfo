@@ -63,23 +63,18 @@ import okhttp3.Response;
 public class MapsActivity extends AppCompatActivity {
     private MapView mapView;
     private OkHttpClient client = new OkHttpClient();
-
     private FusedLocationProviderClient fusedLocationClient;
-
     private String selectedPLane = null;
     private Polyline currentFlightPath = null;
     private Polyline currentFuturePath = null;
 
-    // 🔑 Thông tin OAuth2 (thay bằng của bạn)
     private static final String AVIATIONSTACK_KEY = "4f9fc2f6e6718f86805710054b5caa42";
     private static final String CLIENT_ID = "doanhtu1209-api-client";
     private static final String CLIENT_SECRET = "7LhSIF85OAyPGvS6NRDEcRXUuQ4oK4Lj";
 
-    // Lưu token và thời gian hết hạn
     private String accessToken = null;
     private long tokenExpiryTime = 0;
 
-    // Lưu danh sách marker của máy bay theo icao24
     private Map<String, Marker> planeMarkers = new HashMap<>();
     private Map<String, JSONObject> flightInfoCache = new HashMap<>();
     private Map<String, Long> flightInfoCacheTime = new HashMap<>();
@@ -87,11 +82,8 @@ public class MapsActivity extends AppCompatActivity {
     private Map<String, Long> airportCacheTime = new HashMap<>();
     private static final long AIRPORT_CACHE_TTL = 24*60*60*1000L;
     private static final long FLIGHT_INFO_CACHE_TTL = 5 * 60 * 1000L;
-
-    // Handler để update định kỳ
     private Handler handler = new Handler();
     private static final int LOCATION_PERMISSION_REQUEST = 1000;
-
     EditText searchEditText;
     ImageButton searchButton;
     private FrameLayout resultsContainer;
@@ -244,14 +236,9 @@ public class MapsActivity extends AppCompatActivity {
         });
     }
 
-    // ----------------------------
-    // 🔹 Kiểm tra token còn hạn không
     private boolean isTokenValid() {
         return accessToken != null && System.currentTimeMillis() < tokenExpiryTime;
     }
-
-    // ----------------------------
-    // 🔹 Đảm bảo luôn có token trước khi gọi API
     private void getPlanesWithValidToken() {
         if (!isTokenValid()) {
             Log.d("OpenSky", "Token expired, fetching new one...");
@@ -515,7 +502,6 @@ public class MapsActivity extends AppCompatActivity {
                 merged.put("live", live);
             }
 
-            // Override with OpenSky altitude (convert meters to feet)
             if (openSkyData.has("geo_alt") && !openSkyData.isNull("geo_alt")) {
                 double altMeters = openSkyData.getDouble("geo_alt");
                 live.put("altitude", Math.round(altMeters));
@@ -941,9 +927,12 @@ public class MapsActivity extends AppCompatActivity {
                 // store text + lat/lon together
                 List<String> displayList = new ArrayList<>();
                 List<double[]> coordsList = new ArrayList<>();
+                List<String> icao24List = new ArrayList<>();
+                List<String> callsignList = new ArrayList<>();
 
                 for (int i = 0; i < states.length(); i++) {
                     JSONArray arr = states.getJSONArray(i);
+                    String icao24 = arr.optString(0, "").trim();
                     String callsign = arr.optString(1, "").trim();
                     String origin = arr.optString(2, "").trim();
                     double lon = arr.isNull(5) ? 0.0 : arr.getDouble(5);
@@ -954,17 +943,19 @@ public class MapsActivity extends AppCompatActivity {
 
                         displayList.add(callsign + " — " + origin);
                         coordsList.add(new double[]{lat, lon});
+                        icao24List.add(icao24);
+                        callsignList.add(callsign);
                     }
                 }
 
-                runOnUiThread(() -> showSearchResults(displayList, coordsList));
+                runOnUiThread(() -> showSearchResults(displayList, coordsList, icao24List, callsignList));
 
             } catch (Exception e) {
                 e.printStackTrace();
             }
         }).start();
     }
-    private void showSearchResults(List<String> displayList, List<double[]> coordsList) {
+    private void showSearchResults(List<String> displayList, List<double[]> coordsList, List<String> icao24List, List<String> callsignList) {
         if (displayList.isEmpty()) {
             resultsContainer.setVisibility(View.GONE);
             return;
@@ -983,6 +974,8 @@ public class MapsActivity extends AppCompatActivity {
             double[] coords = coordsList.get(position);
             double lat = coords[0];
             double lon = coords[1];
+            String icao24 = icao24List.get(position);
+            String callsign = callsignList.get(position);
 
             if (lat == 0 && lon == 0) {
                 Toast.makeText(this, "No coordinates available", Toast.LENGTH_SHORT).show();
@@ -992,17 +985,43 @@ public class MapsActivity extends AppCompatActivity {
             MapView map = findViewById(R.id.map);
             IMapController controller = map.getController();
             controller.setZoom(8.0);
-            controller.animateTo(new GeoPoint(lat, lon));
+            GeoPoint target = new GeoPoint(lat, lon);
+            controller.animateTo(target);
 
             resultsContainer.setVisibility(View.GONE);
+
+            // Attempt to open the corresponding marker's info
+            tryOpenMarkerAfterMove(icao24, callsign, target, 0);
         });
+    }
+
+    // Tries to open the marker panel for a plane by icao24, retrying briefly if marker not yet present
+    private void tryOpenMarkerAfterMove(String icao24, String callsign, GeoPoint target, int attempt) {
+        if (icao24 == null || icao24.isEmpty()) return;
+
+        // If marker is already present, open immediately
+        Marker m = planeMarkers.get(icao24);
+        if (m != null) {
+            selectedPLane = icao24;
+            fetchFlightTrack(icao24);
+            handleMarkerClick(icao24, callsign != null ? callsign.trim() : "", m.getPosition());
+            return;
+        }
+
+        // Not present yet: trigger a refresh and retry a few times
+        if (attempt == 0) {
+            getPlanesWithValidToken();
+        }
+
+        if (attempt < 10) {
+            handler.postDelayed(() -> tryOpenMarkerAfterMove(icao24, callsign, target, attempt + 1), 300);
+        }
     }
 
     @Override
     protected void onDestroy() {
         super.onDestroy();
         handler.removeCallbacks(updateTask);
-        // optionally cancel all outstanding HTTP calls started by this client
         client.dispatcher().cancelAll();
     }
 
