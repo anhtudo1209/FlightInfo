@@ -6,7 +6,16 @@ import android.graphics.Color;
 import android.graphics.drawable.Drawable;
 import android.os.Bundle;
 import android.os.Handler;
+import android.text.Editable;
+import android.text.TextWatcher;
 import android.util.Log;
+import android.view.View;
+import android.widget.ArrayAdapter;
+import android.widget.EditText;
+import android.widget.FrameLayout;
+import android.widget.ImageButton;
+import android.widget.ListView;
+import android.widget.Toast;
 
 import androidx.annotation.NonNull;
 import androidx.appcompat.app.AppCompatActivity;
@@ -19,6 +28,7 @@ import com.google.android.gms.location.LocationServices;
 
 import org.json.JSONArray;
 import org.json.JSONObject;
+import org.osmdroid.api.IMapController;
 import org.osmdroid.config.Configuration;
 import org.osmdroid.events.DelayedMapListener;
 import org.osmdroid.events.MapEventsReceiver;
@@ -82,12 +92,26 @@ public class MapsActivity extends AppCompatActivity {
     private Handler handler = new Handler();
     private static final int LOCATION_PERMISSION_REQUEST = 1000;
 
+    EditText searchEditText;
+    ImageButton searchButton;
+    private FrameLayout resultsContainer;
+    private View resultsView;
+    private ListView resultsList;
+
     @Override
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
         Configuration.getInstance().setUserAgentValue(getPackageName());
         setContentView(R.layout.activity_maps);
-        // Khởi tạo MapView
+
+        searchEditText = findViewById(R.id.searchEditText);
+        searchButton = findViewById(R.id.searchButton);
+        resultsContainer = findViewById(R.id.searchResultsContainer);
+        resultsView = getLayoutInflater().inflate(R.layout.search_results, resultsContainer, false);
+        resultsList = resultsView.findViewById(R.id.searchResultsList);
+        resultsContainer.addView(resultsView);
+        resultsContainer.setVisibility(View.GONE);
+
         mapView = findViewById(R.id.map);
         mapView.setMultiTouchControls(true);
         mapView.getController().setZoom(9.0);
@@ -99,6 +123,17 @@ public class MapsActivity extends AppCompatActivity {
         } else {
             setMapToCurrentLocation();
         }
+        searchButton.setOnClickListener(v -> {
+            String query = searchEditText.getText().toString().trim();
+            if (!query.isEmpty()) {
+                Toast.makeText(this, "Searching for: " + query, Toast.LENGTH_SHORT).show();
+                searchFlights(query);
+            }
+            else {
+                resultsContainer.setVisibility(View.GONE);
+                Toast.makeText(this, "Please enter a flight number or country", Toast.LENGTH_SHORT).show();
+            }
+        });
         mapView.addMapListener(new DelayedMapListener(new MapListener() {
             @Override
             public boolean onScroll(ScrollEvent event) {
@@ -111,6 +146,7 @@ public class MapsActivity extends AppCompatActivity {
                 return true;
             }
         }, 1000));
+
         MapEventsReceiver mReceive = new MapEventsReceiver() {
             @Override
             public boolean singleTapConfirmedHelper(GeoPoint p) {
@@ -124,6 +160,17 @@ public class MapsActivity extends AppCompatActivity {
                 return false;
             }
         };
+        searchEditText.addTextChangedListener(new TextWatcher() {
+            @Override
+            public void onTextChanged(CharSequence s, int start, int before, int count) {
+                if (s.length() == 0) {
+                    resultsContainer.setVisibility(View.GONE);
+                }
+            }
+            @Override public void beforeTextChanged(CharSequence s, int start, int count, int after) {}
+            @Override public void afterTextChanged(Editable s) {}
+        });
+
 
         MapEventsOverlay overlayEvents = new MapEventsOverlay(mReceive);
         mapView.getOverlays().add(overlayEvents);
@@ -875,6 +922,80 @@ public class MapsActivity extends AppCompatActivity {
         } catch (Exception e) {
             Log.e("FlightSheet", "Error updating sheet for " + icao24, e);
         }
+    }
+    private void searchFlights(String query) {
+        new Thread(() -> {
+            try {
+                OkHttpClient client = new OkHttpClient();
+                Request request = new Request.Builder()
+                        .url("https://opensky-network.org/api/states/all")
+                        .build();
+
+                Response response = client.newCall(request).execute();
+                if (!response.isSuccessful()) return;
+
+                String json = response.body().string();
+                JSONObject root = new JSONObject(json);
+                JSONArray states = root.getJSONArray("states");
+
+                // store text + lat/lon together
+                List<String> displayList = new ArrayList<>();
+                List<double[]> coordsList = new ArrayList<>();
+
+                for (int i = 0; i < states.length(); i++) {
+                    JSONArray arr = states.getJSONArray(i);
+                    String callsign = arr.optString(1, "").trim();
+                    String origin = arr.optString(2, "").trim();
+                    double lon = arr.isNull(5) ? 0.0 : arr.getDouble(5);
+                    double lat = arr.isNull(6) ? 0.0 : arr.getDouble(6);
+
+                    if (callsign.toLowerCase().contains(query.toLowerCase()) ||
+                            origin.toLowerCase().contains(query.toLowerCase())) {
+
+                        displayList.add(callsign + " — " + origin);
+                        coordsList.add(new double[]{lat, lon});
+                    }
+                }
+
+                runOnUiThread(() -> showSearchResults(displayList, coordsList));
+
+            } catch (Exception e) {
+                e.printStackTrace();
+            }
+        }).start();
+    }
+    private void showSearchResults(List<String> displayList, List<double[]> coordsList) {
+        if (displayList.isEmpty()) {
+            resultsContainer.setVisibility(View.GONE);
+            return;
+        }
+
+        ArrayAdapter<String> adapter = new ArrayAdapter<>(
+                this,
+                android.R.layout.simple_list_item_1,
+                displayList
+        );
+
+        resultsList.setAdapter(adapter);
+        resultsContainer.setVisibility(View.VISIBLE);
+
+        resultsList.setOnItemClickListener((parent, view, position, id) -> {
+            double[] coords = coordsList.get(position);
+            double lat = coords[0];
+            double lon = coords[1];
+
+            if (lat == 0 && lon == 0) {
+                Toast.makeText(this, "No coordinates available", Toast.LENGTH_SHORT).show();
+                return;
+            }
+
+            MapView map = findViewById(R.id.map);
+            IMapController controller = map.getController();
+            controller.setZoom(8.0);
+            controller.animateTo(new GeoPoint(lat, lon));
+
+            resultsContainer.setVisibility(View.GONE);
+        });
     }
 
     @Override
