@@ -205,9 +205,6 @@ public class MapsActivity extends AppCompatActivity {
             }
         });
     }
-
-    // ----------------------------
-    // 🔹 Gọi API lấy dữ liệu máy bay
     private void handleStatesUpdate(JSONArray states) {
         if (!isActive) return;
         try {
@@ -227,6 +224,26 @@ public class MapsActivity extends AppCompatActivity {
                 double altToPass = !Double.isNaN(geoAlt) ? geoAlt : baroAlt;
                 overlayManager.updatePlaneMarker(icao24, callsign, lat, lon, heading, altToPass, speed);
                 seenPlanes.add(icao24);
+                
+                // If this is the selected plane, redraw its lines
+                if (selectedPLane != null && selectedPLane.equals(icao24)) {
+                    GeoPoint currentPos = new GeoPoint(lat, lon);
+                    // Simple: just redraw the lines from the current position
+                    fetchFlightTrack(icao24);
+                    // Redraw dashed line to destination
+                    JSONObject cachedFlight = flightCache.getIfFresh(icao24);
+                    if (cachedFlight != null) {
+                        JSONObject arrival = cachedFlight.optJSONObject("arrival");
+                        if (arrival != null) {
+                            double arrivalLat = arrival.optDouble("latitude", 0.0);
+                            double arrivalLon = arrival.optDouble("longitude", 0.0);
+                            if (arrivalLat != 0.0 || arrivalLon != 0.0) {
+                                GeoPoint arrivalPoint = new GeoPoint(arrivalLat, arrivalLon);
+                                overlayManager.drawDashedLine(currentPos, arrivalPoint);
+                            }
+                        }
+                    }
+                }
             }
             overlayManager.removeMarkersNotIn(seenPlanes);
         } catch (Exception uiEx) {
