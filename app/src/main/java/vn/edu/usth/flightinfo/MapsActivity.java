@@ -15,6 +15,9 @@ import android.widget.FrameLayout;
 import android.widget.ImageButton;
 import android.widget.ListView;
 import android.widget.Toast;
+import android.widget.ProgressBar;
+import android.widget.TextView;
+import android.widget.LinearLayout;
 
 import androidx.annotation.NonNull;
 import androidx.appcompat.app.AppCompatActivity;
@@ -80,6 +83,14 @@ public class MapsActivity extends AppCompatActivity {
     private FrameLayout resultsContainer;
     private View resultsView;
     private ListView resultsList;
+    
+    // New UI components for better search feedback
+    private LinearLayout searchStatusContainer;
+    private ProgressBar searchProgressBar;
+    private TextView searchStatusText;
+    private TextView searchResultsCount;
+    private LinearLayout noResultsContainer;
+    private ImageButton closeResultsButton;
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
@@ -94,6 +105,14 @@ public class MapsActivity extends AppCompatActivity {
         resultsList = resultsView.findViewById(R.id.searchResultsList);
         resultsContainer.addView(resultsView);
         resultsContainer.setVisibility(View.GONE);
+        
+        // Initialize new UI components
+        searchStatusContainer = findViewById(R.id.searchStatusContainer);
+        searchProgressBar = findViewById(R.id.searchProgressBar);
+        searchStatusText = findViewById(R.id.searchStatusText);
+        searchResultsCount = resultsView.findViewById(R.id.searchResultsCount);
+        noResultsContainer = resultsView.findViewById(R.id.noResultsContainer);
+        closeResultsButton = resultsView.findViewById(R.id.closeResultsButton);
 
         mapView = findViewById(R.id.map);
         mapView.setMultiTouchControls(true);
@@ -116,13 +135,19 @@ public class MapsActivity extends AppCompatActivity {
         searchButton.setOnClickListener(v -> {
             String query = searchEditText.getText().toString().trim();
             if (!query.isEmpty()) {
-                Toast.makeText(this, "Searching for: " + query, Toast.LENGTH_SHORT).show();
+                showSearchStatus("Searching for: " + query, true);
                 searchFlights(query);
             }
             else {
                 resultsContainer.setVisibility(View.GONE);
-                Toast.makeText(this, "Please enter a flight number or country", Toast.LENGTH_SHORT).show();
+                showSearchStatus("Please enter a flight number or country", false);
             }
+        });
+        
+        // Close results button
+        closeResultsButton.setOnClickListener(v -> {
+            resultsContainer.setVisibility(View.GONE);
+            hideSearchStatus();
         });
         ImageButton myLocationButton = findViewById(R.id.myLocationButton);
         myLocationButton.setOnClickListener(v -> {
@@ -250,11 +275,6 @@ public class MapsActivity extends AppCompatActivity {
             Log.e("OpenSky", "Error updating map overlays", uiEx);
         }
     }
-    // moved to PlaneOverlayManager
-
-    // heading offset logic handled inside PlaneOverlayManager
-
-    // helper: return the current FlightDetailSheet instance if present (or null)
     private FlightDetailFragment getDetailSheet() {
         try {
             return (FlightDetailFragment) getSupportFragmentManager().findFragmentByTag("flight_detail");
@@ -294,12 +314,10 @@ public class MapsActivity extends AppCompatActivity {
             // This prevents timing race on cache hit (getDetailSheet() will now find it)
             getSupportFragmentManager().executePendingTransactions();
 
-            Log.d("FlightSheet", "Placeholder shown and committed synchronously for " + icao24);
         } catch (Exception e) {
             Log.e("FlightSheet", "Failed to show placeholder for " + icao24, e);
         }
 
-        // Check cache first (will NOW find the placeholder and update it)
         JSONObject cached = flightCache.getIfFresh(icao24);
         if (cached != null) {
             JSONObject arrival = cached.optJSONObject("arrival");
@@ -362,7 +380,6 @@ public class MapsActivity extends AppCompatActivity {
         if (callsign == null) callsign = "";
 
         final String cleanCalls = cleanCallsign(callsign);
-        Log.d("Aviationstack", "Original callsign='" + callsign + "' cleaned='" + cleanCalls + "'");
 
         if (cleanCalls.isEmpty() || cleanCalls.equalsIgnoreCase("UNKNOWN")) {
             // If no usable callsign, show fallback and return (or try other ways)
@@ -425,10 +442,8 @@ public class MapsActivity extends AppCompatActivity {
                             FlightDetailFragment existing = getDetailSheet();
                             if (existing != null && existing.isAdded()) {
                                 existing.updateFromJson(finalMatch);
-                                Log.d("FlightSheet", "Updated existing sheet with API data for " + icao24);
                             } else {
                                 // Edge case: Create if missing (shouldn't happen)
-                                Log.w("FlightSheet", "No existing sheet for API update - creating");
                                 FlightDetailFragment sheet = FlightDetailFragment.newInstance(finalMatch.toString());
                                 sheet.show(getSupportFragmentManager(), "flight_detail");
                             }
@@ -606,10 +621,6 @@ public class MapsActivity extends AppCompatActivity {
             FlightDetailFragment sheet = getDetailSheet();
             if (sheet != null && sheet.isAdded()) {
                 sheet.clearFields();  // Clears to "No data" state
-                Log.d("FlightSheet", "Cleared existing sheet (no data)");  // Debug log
-            } else {
-                // Edge case: No sheet? Log warning but don't create (avoids spam)
-                Log.w("FlightSheet", "No sheet to clear for no-data state");
             }
         } catch (Exception e) {
             Log.e("FlightSheet", "Error clearing sheet for no data", e);
@@ -631,9 +642,8 @@ public class MapsActivity extends AppCompatActivity {
                         GeoPoint userPoint = new GeoPoint(location.getLatitude(), location.getLongitude());
                         mapView.getController().setZoom(9.0);
                         mapView.getController().setCenter(userPoint);
-                        Log.d("OpenSky", "User location: " + userPoint);
                     } else {
-                        Log.w("OpenSky", "Không lấy được vị trí hiện tại");
+                        Log.w("OpenSky", "Cannot get user location");
                     }
                 });
     }
@@ -644,10 +654,8 @@ public class MapsActivity extends AppCompatActivity {
             FlightDetailFragment sheet = getDetailSheet();
             if (sheet != null && sheet.isAdded()) {
                 sheet.updateFromJson(flight);
-                Log.d("FlightSheet", "Updated existing sheet with data for " + icao24);
             } else {
                 // Edge case: No sheet? Create one (shouldn't happen, but safe)
-                Log.w("FlightSheet", "No existing sheet found - creating new for " + icao24);
                 FlightDetailFragment newSheet = FlightDetailFragment.newInstance(flight.toString());
                 newSheet.show(getSupportFragmentManager(), "flight_detail");
             }
@@ -698,17 +706,25 @@ public class MapsActivity extends AppCompatActivity {
 
             } catch (Exception e) {
                 e.printStackTrace();
-                runOnUiThread(() -> Toast.makeText(this, "Search failed. Please try again.", Toast.LENGTH_SHORT).show());
+                runOnUiThread(() -> showSearchStatus("Search failed. Please try again.", false));
             }
         }).start();
     }
     private void showSearchResults(List<String> displayList, List<double[]> coordsList, List<String> icao24List, List<String> callsignList) {
+        hideSearchStatus(); // Hide loading status
+        
         if (displayList.isEmpty()) {
             resultsContainer.setVisibility(View.GONE);
-            Toast.makeText(this, "No results found", Toast.LENGTH_SHORT).show();
+            showSearchStatus("No results found", false);
             return;
         }
 
+        // Update results count
+        searchResultsCount.setText(displayList.size() + " result" + (displayList.size() == 1 ? "" : "s") + " found");
+        
+        // Hide no results message
+        noResultsContainer.setVisibility(View.GONE);
+        
         ArrayAdapter<String> adapter = new ArrayAdapter<>(
                 this,
                 android.R.layout.simple_list_item_1,
@@ -726,7 +742,7 @@ public class MapsActivity extends AppCompatActivity {
             String callsign = callsignList.get(position);
 
             if (lat == 0 && lon == 0) {
-                Toast.makeText(this, "No coordinates available", Toast.LENGTH_SHORT).show();
+                showSearchStatus("No coordinates available", false);
                 return;
             }
 
@@ -737,6 +753,7 @@ public class MapsActivity extends AppCompatActivity {
             controller.animateTo(target);
 
             resultsContainer.setVisibility(View.GONE);
+            hideSearchStatus();
 
             // Attempt to open the corresponding marker's info
             tryOpenMarkerAfterMove(icao24, callsign, target, 0);
@@ -788,6 +805,27 @@ public class MapsActivity extends AppCompatActivity {
         super.onDestroy();
         handler.removeCallbacks(updateTask);
         client.dispatcher().cancelAll();
+    }
+
+    // Helper methods for search status management
+    private void showSearchStatus(String message, boolean showProgress) {
+        searchStatusText.setText(message);
+        searchStatusContainer.setVisibility(View.VISIBLE);
+        if (showProgress) {
+            searchProgressBar.setVisibility(View.VISIBLE);
+        } else {
+            searchProgressBar.setVisibility(View.GONE);
+        }
+        
+        // Auto-hide status messages after 3 seconds (except for loading states)
+        if (!showProgress) {
+            handler.postDelayed(this::hideSearchStatus, 3000);
+        }
+    }
+    
+    private void hideSearchStatus() {
+        searchStatusContainer.setVisibility(View.GONE);
+        searchProgressBar.setVisibility(View.GONE);
     }
 
 }
