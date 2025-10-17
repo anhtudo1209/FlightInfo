@@ -2,7 +2,6 @@ package vn.edu.usth.flightinfo;
 
 import android.Manifest;
 import android.content.pm.PackageManager;
-import android.graphics.Color;
 import android.os.Bundle;
 import android.os.Handler;
 import android.text.Editable;
@@ -14,7 +13,6 @@ import android.widget.EditText;
 import android.widget.FrameLayout;
 import android.widget.ImageButton;
 import android.widget.ListView;
-import android.widget.Toast;
 import android.widget.ProgressBar;
 import android.widget.TextView;
 import android.widget.LinearLayout;
@@ -23,7 +21,6 @@ import androidx.annotation.NonNull;
 import androidx.appcompat.app.AppCompatActivity;
 import androidx.core.app.ActivityCompat;
 import androidx.core.content.ContextCompat;
-import androidx.core.content.res.ResourcesCompat;
 
 import com.google.android.gms.location.FusedLocationProviderClient;
 import com.google.android.gms.location.LocationServices;
@@ -46,10 +43,8 @@ import org.osmdroid.views.overlay.Marker;
 import java.io.IOException;
 import java.net.URLEncoder;
 import java.util.ArrayList;
-import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
-import java.util.Map;
 import java.util.Set;
 
 import okhttp3.Call;
@@ -65,14 +60,13 @@ public class MapsActivity extends AppCompatActivity {
     private String selectedPLane = null;
     private PlaneOverlayManager overlayManager;
 
-    private static final String AVIATIONSTACK_KEY = "4f9fc2f6e6718f86805710054b5caa42";
-    private static final String CLIENT_ID = "doanhtu1209-api-client";
-    private static final String CLIENT_SECRET = "7LhSIF85OAyPGvS6NRDEcRXUuQ4oK4Lj";
+    private String AVIATIONSTACK_KEY;
+    private String CLIENT_ID;
+    private String CLIENT_SECRET;
 
     private OpenSkyAuthProvider authProvider;
     private OpenSkyService openSkyService;
 
-    // moved markers into PlaneOverlayManager
     private FlightCache flightCache = new FlightCache(5 * 60 * 1000L);
     private AirportCache airportCache = new AirportCache(24*60*60*1000L);
     private Handler handler = new Handler();
@@ -84,7 +78,6 @@ public class MapsActivity extends AppCompatActivity {
     private View resultsView;
     private ListView resultsList;
     
-    // New UI components for better search feedback
     private LinearLayout searchStatusContainer;
     private ProgressBar searchProgressBar;
     private TextView searchStatusText;
@@ -98,6 +91,10 @@ public class MapsActivity extends AppCompatActivity {
         Configuration.getInstance().setUserAgentValue(getPackageName());
         setContentView(R.layout.activity_maps);
 
+        AVIATIONSTACK_KEY = getString(R.string.aviationstack_key);
+        CLIENT_ID = getString(R.string.opensky_client_id);
+        CLIENT_SECRET = getString(R.string.opensky_client_secret);
+
         searchEditText = findViewById(R.id.searchEditText);
         searchButton = findViewById(R.id.searchButton);
         resultsContainer = findViewById(R.id.searchResultsContainer);
@@ -106,7 +103,6 @@ public class MapsActivity extends AppCompatActivity {
         resultsContainer.addView(resultsView);
         resultsContainer.setVisibility(View.GONE);
         
-        // Initialize new UI components
         searchStatusContainer = findViewById(R.id.searchStatusContainer);
         searchProgressBar = findViewById(R.id.searchProgressBar);
         searchStatusText = findViewById(R.id.searchStatusText);
@@ -144,7 +140,6 @@ public class MapsActivity extends AppCompatActivity {
             }
         });
         
-        // Close results button
         closeResultsButton.setOnClickListener(v -> {
             resultsContainer.setVisibility(View.GONE);
             hideSearchStatus();
@@ -159,6 +154,7 @@ public class MapsActivity extends AppCompatActivity {
                 setMapToCurrentLocation();
             }
         });
+
         mapView.addMapListener(new DelayedMapListener(new MapListener() {
             @Override
             public boolean onScroll(ScrollEvent event) {
@@ -175,7 +171,6 @@ public class MapsActivity extends AppCompatActivity {
         MapEventsReceiver mReceive = new MapEventsReceiver() {
             @Override
             public boolean singleTapConfirmedHelper(GeoPoint p) {
-                // User tapped the map (not a marker) -> xoá tất cả các đường vẽ
                 clearLines();
                 selectedPLane = null;
                 return true; // event handled
@@ -185,6 +180,7 @@ public class MapsActivity extends AppCompatActivity {
                 return false;
             }
         };
+
         searchEditText.addTextChangedListener(new TextWatcher() {
             @Override
             public void onTextChanged(CharSequence s, int start, int before, int count) {
@@ -196,23 +192,18 @@ public class MapsActivity extends AppCompatActivity {
             @Override public void afterTextChanged(Editable s) {}
         });
 
-
         MapEventsOverlay overlayEvents = new MapEventsOverlay(mReceive);
         mapView.getOverlays().add(overlayEvents);
-
-        // ensure fragment (if previously shown) is cleared
         clearDetailFields();
-
-        // Polling will start in onStart to be lifecycle-aware
     }
 
-    // ----------------------------
-    // 🔹 Lặp lại update
     private Runnable updateTask = new Runnable() {
         @Override
         public void run() {
-            getPlanesWithValidToken();
-            handler.postDelayed(this, 10000); // refresh sau 10 giây
+            if (isActive) { 
+                getPlanesWithValidToken();
+                handler.postDelayed(this, 10000);
+            }
         }
     };
 
@@ -230,6 +221,7 @@ public class MapsActivity extends AppCompatActivity {
             }
         });
     }
+    
     private void handleStatesUpdate(JSONArray states) {
         if (!isActive) return;
         try {
@@ -250,12 +242,9 @@ public class MapsActivity extends AppCompatActivity {
                 overlayManager.updatePlaneMarker(icao24, callsign, lat, lon, heading, altToPass, speed);
                 seenPlanes.add(icao24);
                 
-                // If this is the selected plane, redraw its lines
                 if (selectedPLane != null && selectedPLane.equals(icao24)) {
                     GeoPoint currentPos = new GeoPoint(lat, lon);
-                    // Simple: just redraw the lines from the current position
                     fetchFlightTrack(icao24);
-                    // Redraw dashed line to destination
                     JSONObject cachedFlight = flightCache.getIfFresh(icao24);
                     if (cachedFlight != null) {
                         JSONObject arrival = cachedFlight.optJSONObject("arrival");
@@ -275,6 +264,7 @@ public class MapsActivity extends AppCompatActivity {
             Log.e("OpenSky", "Error updating map overlays", uiEx);
         }
     }
+
     private FlightDetailFragment getDetailSheet() {
         try {
             return (FlightDetailFragment) getSupportFragmentManager().findFragmentByTag("flight_detail");
@@ -282,10 +272,9 @@ public class MapsActivity extends AppCompatActivity {
             return null;
         }
     }
+
     private void handleMarkerClick(String icao24, String callsign, GeoPoint currentPos) {
         selectedPLane = icao24;
-
-        // Get OpenSky altitude and speed from the marker's relatedObject
         JSONObject openSkyData = null;
         Marker marker = overlayManager.getMarker(icao24);
         if (marker != null) {
@@ -298,26 +287,15 @@ public class MapsActivity extends AppCompatActivity {
                 Log.w("OpenSky", "Failed to get marker relatedObject", e);
             }
         }
-
         final JSONObject finalOpenSkyData = openSkyData;
-
-        // Clear old lines and dismiss any existing fragment FIRST
         clearLines();
-
-        // FIXED: Show EXACTLY ONE placeholder (empty) - this will be updated later by cache/API
-        // No check for existing here - after clearLines(), none should exist
         try {
             FlightDetailFragment placeholder = FlightDetailFragment.newInstance("{}");
             placeholder.show(getSupportFragmentManager(), "flight_detail");
-
-            // FIXED: Force synchronous commit so the fragment is immediately added to the manager
-            // This prevents timing race on cache hit (getDetailSheet() will now find it)
             getSupportFragmentManager().executePendingTransactions();
-
         } catch (Exception e) {
             Log.e("FlightSheet", "Failed to show placeholder for " + icao24, e);
         }
-
         JSONObject cached = flightCache.getIfFresh(icao24);
         if (cached != null) {
             JSONObject arrival = cached.optJSONObject("arrival");
@@ -326,19 +304,15 @@ public class MapsActivity extends AppCompatActivity {
             showBasicInfo(icao24, mergedData);
             return;
         }
-        // No cache - fetch async (will update placeholder later)
         fetchFlightInfo(callsign, icao24, currentPos, finalOpenSkyData);
     }
+
     private JSONObject mergeOpenSkyData(JSONObject aviationstackData, JSONObject openSkyData) {
         if (openSkyData == null) {
             return aviationstackData;
         }
-
         try {
-            // Create a copy to avoid modifying the cached data
             JSONObject merged = new JSONObject(aviationstackData.toString());
-
-            // Get or create "live" object to store OpenSky altitude and speed
             JSONObject live = merged.optJSONObject("live");
             if (live == null) {
                 live = new JSONObject();
@@ -350,24 +324,18 @@ public class MapsActivity extends AppCompatActivity {
                 live.put("altitude", Math.round(altMeters));
             }
 
-            // Override with OpenSky speed (convert m/s to km/h)
             if (openSkyData.has("speed") && !openSkyData.isNull("speed")) {
                 double speedMs = openSkyData.getDouble("speed");
-                double speedKmh = speedMs * 3.6; // Convert m/s to km/h
+                double speedKmh = speedMs * 3.6;
                 live.put("speed_horizontal", Math.round(speedKmh));
             }
-
-            // Add timestamp from OpenSky
-            if (openSkyData.has("ts")) {
-                live.put("updated", openSkyData.getString("ts"));
-            }
-
             return merged;
         } catch (Exception e) {
             Log.e("OpenSky", "Error merging OpenSky data", e);
             return aviationstackData;
         }
     }
+
     private String cleanCallsign(String callsign) {
         if (callsign == null) return "";
         String s = callsign.trim().replaceAll("\\s+", "");
@@ -376,21 +344,15 @@ public class MapsActivity extends AppCompatActivity {
     }
 
     private void fetchFlightInfo(String callsign, String icao24, GeoPoint currentPos, JSONObject openSkyData) {
-        // defensive: check callsign
         if (callsign == null) callsign = "";
-
         final String cleanCalls = cleanCallsign(callsign);
-
         if (cleanCalls.isEmpty() || cleanCalls.equalsIgnoreCase("UNKNOWN")) {
-            // If no usable callsign, show fallback and return (or try other ways)
             Log.w("Aviationstack", "Empty/Unknown callsign for " + icao24 + ", will attempt fallback or abort.");
             runOnUiThread(() -> {
                 showNoAviationstackRecord();
             });
             return;
         }
-
-        // Attempt 1: query by flight_icao using cleaned value
         final String encoded;
         try { encoded = URLEncoder.encode(cleanCalls, "UTF-8"); }
         catch (Exception e) { Log.w("Aviationstack","URLEncoder failed, using raw cleanCalls", e); throw new RuntimeException(e); }
@@ -399,7 +361,6 @@ public class MapsActivity extends AppCompatActivity {
         String url1 = base + "&flight_icao=" + encoded + "&limit=5";
         Log.d("Aviationstack", "Query flight_icao URL: " + url1);
         Request req1 = new Request.Builder().url(url1).build();
-
         client.newCall(req1).enqueue(new Callback() {
             @Override
             public void onFailure(@NonNull Call call, @NonNull IOException e) {
@@ -408,14 +369,13 @@ public class MapsActivity extends AppCompatActivity {
                     showNoAviationstackRecord();
                 });
             }
-
             @Override
             public void onResponse(@NonNull Call call, @NonNull Response response) throws IOException {
                 String body = response.body() != null ? response.body().string() : "";
                 Log.d("Aviationstack", "Response code=" + response.code() + " body=" + body);
                 if (!response.isSuccessful()) {
                     Log.e("Aviationstack", "API error: " + response.code());
-                    showNoAviationstackRecord();  // FIXED: Clears existing (no new sheet)
+                    showNoAviationstackRecord();
                     return;
                 }
                 try {
@@ -423,50 +383,41 @@ public class MapsActivity extends AppCompatActivity {
                     JSONArray data = json.optJSONArray("data");
                     if (data != null && data.length() > 0) {
                         JSONObject match = data.getJSONObject(0);
-
-                        // Merge OpenSky altitude and speed into the Aviationstack data
                         JSONObject mergedMatch = mergeOpenSkyData(match, openSkyData);
-
-                        // update cache with merged data
                         flightCache.put(icao24, mergedMatch);
 
                         final JSONObject finalMatch = mergedMatch;
                         final String finalIcao24 = icao24;
                         final GeoPoint finalCurrentPos = currentPos;
 
-                        // process arrival
                         processArrival(finalMatch.optJSONObject("arrival"), finalIcao24, finalCurrentPos);
-
-                        // FIXED: ALWAYS update existing placeholder (no runOnUiThread needed, no new creation)
                         try {
                             FlightDetailFragment existing = getDetailSheet();
                             if (existing != null && existing.isAdded()) {
                                 existing.updateFromJson(finalMatch);
                             } else {
-                                // Edge case: Create if missing (shouldn't happen)
                                 FlightDetailFragment sheet = FlightDetailFragment.newInstance(finalMatch.toString());
                                 sheet.show(getSupportFragmentManager(), "flight_detail");
                             }
                         } catch (Exception ignored) {}
                         return;
                     } else {
-                        // No matches — clear existing
-                        showNoAviationstackRecord();  // FIXED: Clears existing (no new sheet)
+                        showNoAviationstackRecord();
                     }
                 } catch (Exception e) {
                     Log.e("Aviationstack", "Parse error", e);
-                    showNoAviationstackRecord();  // FIXED: Clears existing (no new sheet)
+                    showNoAviationstackRecord();
                 }
             }
         });
     }
+
     private void fetchFlightTrack(String icao24) {
         openSkyService.fetchFlightTrackWithValidToken(icao24, new OpenSkyService.TrackCallback() {
             @Override
             public void onSuccess(List<GeoPoint> points) {
                 runOnUiThread(() -> { if (isActive) overlayManager.drawFlightPath(points); });
             }
-
             @Override
             public void onError(Exception e) {
                 Log.e("OpenSky", "Track fetch failed", e);
@@ -475,13 +426,11 @@ public class MapsActivity extends AppCompatActivity {
     }
 
     private void fetchAirportCoords(String icao24, GeoPoint currentPos, String iata, String icao) {
-        // chọn key cache ưu tiên IATA > ICAO
         String key = (iata != null && !iata.isEmpty()) ? iata : (icao != null && !icao.isEmpty() ? icao : null);
         if (key == null) {
             Log.w("Aviationstack", "No IATA/ICAO to lookup for " + icao24);
             return;
         }
-        // check cache
         JSONObject cachedAirport = airportCache.getIfFresh(key);
         if (cachedAirport != null) {
                 double lat = cachedAirport.optDouble("latitude", 0.0);
@@ -489,7 +438,6 @@ public class MapsActivity extends AppCompatActivity {
                 if (lat != 0.0 || lon != 0.0) {
                     GeoPoint arrivalPoint = new GeoPoint(lat, lon);
                     runOnUiThread(() -> { if (isActive) overlayManager.drawDashedLine(currentPos, arrivalPoint); });
-                    // also update the flightInfoCache arrival coordinates for future use
                     try {
                         JSONObject cachedFlight = flightCache.getIfFresh(icao24);
                         if (cachedFlight != null) {
@@ -500,7 +448,6 @@ public class MapsActivity extends AppCompatActivity {
                             }
                             arrival.put("latitude", lat);
                             arrival.put("longitude", lon);
-                            // re-put to ensure updated copy is cached
                             flightCache.put(icao24, cachedFlight);
                         }
                     } catch (Exception e) {
@@ -510,7 +457,6 @@ public class MapsActivity extends AppCompatActivity {
                 }
         }
 
-        // Build URL
         String url = "https://api.aviationstack.com/v1/airports?access_key=" + AVIATIONSTACK_KEY;
         try {
             if (iata != null && !iata.isEmpty()) {
@@ -519,9 +465,8 @@ public class MapsActivity extends AppCompatActivity {
                 url += "&icao_code=" + URLEncoder.encode(icao, "UTF-8");
             }
         } catch (Exception e) {
-            // ignore encoding error, continue with raw
+            Log.w("Aviationstack", "URL encoding failed for airport lookup", e);
         }
-
         Request request = new Request.Builder().url(url).build();
         client.newCall(request).enqueue(new Callback() {
             @Override
@@ -540,15 +485,12 @@ public class MapsActivity extends AppCompatActivity {
                     JSONObject json = new JSONObject(body);
                     JSONArray data = json.optJSONArray("data");
                     if (data != null && data.length() > 0) {
-                        JSONObject airport = data.getJSONObject(0); // lấy kết quả đầu tiên
+                        JSONObject airport = data.getJSONObject(0); 
                         double lat = airport.optDouble("latitude", 0.0);
                         double lon = airport.optDouble("longitude", 0.0);
 
                         if (lat != 0.0 || lon != 0.0) {
-                            // cache airport bằng key
                             airportCache.put(key, airport);
-
-                            // cập nhật flightInfoCache arrival coords nếu có record flight
                             try {
                                 JSONObject cachedFlight = flightCache.getIfFresh(icao24);
                                 if (cachedFlight != null) {
@@ -592,7 +534,6 @@ public class MapsActivity extends AppCompatActivity {
         }
     }
 
-    // dashed and solid path drawing moved to PlaneOverlayManager
     private void clearLines() {
         overlayManager.clearLines();
         try {
@@ -602,8 +543,8 @@ public class MapsActivity extends AppCompatActivity {
             }
         } catch (Exception ignored) {}
     }
+
     private void clearDetailFields() {
-        // ask the fragment (if visible) to clear itself
         runOnUiThread(() -> {
             try {
                 FlightDetailFragment sheet = getDetailSheet();
@@ -615,8 +556,6 @@ public class MapsActivity extends AppCompatActivity {
     }
 
     private void showNoAviationstackRecord() {
-        // FIXED: ONLY clear the existing placeholder (never create new - prevents duplicates)
-        // Assume placeholder was shown in handleMarkerClick
         try {
             FlightDetailFragment sheet = getDetailSheet();
             if (sheet != null && sheet.isAdded()) {
@@ -627,6 +566,15 @@ public class MapsActivity extends AppCompatActivity {
         }
     }
 
+    @Override
+    public void onRequestPermissionsResult(int requestCode, @NonNull String[] permissions, @NonNull int[] grantResults) {
+        super.onRequestPermissionsResult(requestCode, permissions, grantResults);
+        if (requestCode == LOCATION_PERMISSION_REQUEST) {
+            if (grantResults.length > 0 && grantResults[0] == PackageManager.PERMISSION_GRANTED) {
+                setMapToCurrentLocation();
+            }
+        }
+    }
 
     private void setMapToCurrentLocation() {
         if (ActivityCompat.checkSelfPermission(this, Manifest.permission.ACCESS_FINE_LOCATION)
@@ -635,7 +583,6 @@ public class MapsActivity extends AppCompatActivity {
                         != PackageManager.PERMISSION_GRANTED) {
             return;
         }
-
         fusedLocationClient.getLastLocation()
                 .addOnSuccessListener(this, location -> {
                     if (location != null) {
@@ -647,15 +594,13 @@ public class MapsActivity extends AppCompatActivity {
                     }
                 });
     }
+
     private void showBasicInfo(String icao24, JSONObject flight) {
-        // FIXED: ALWAYS update existing placeholder (never create new - prevents duplicates)
-        // Assume placeholder was shown in handleMarkerClick
         try {
             FlightDetailFragment sheet = getDetailSheet();
             if (sheet != null && sheet.isAdded()) {
                 sheet.updateFromJson(flight);
             } else {
-                // Edge case: No sheet? Create one (shouldn't happen, but safe)
                 FlightDetailFragment newSheet = FlightDetailFragment.newInstance(flight.toString());
                 newSheet.show(getSupportFragmentManager(), "flight_detail");
             }
@@ -663,6 +608,7 @@ public class MapsActivity extends AppCompatActivity {
             Log.e("FlightSheet", "Error updating sheet for " + icao24, e);
         }
     }
+
     private void searchFlights(String query) {
         new Thread(() -> {
             try {
@@ -678,7 +624,6 @@ public class MapsActivity extends AppCompatActivity {
                 JSONObject root = new JSONObject(json);
                 JSONArray states = root.getJSONArray("states");
 
-                // store text + lat/lon together
                 List<String> displayList = new ArrayList<>();
                 List<double[]> coordsList = new ArrayList<>();
                 List<String> icao24List = new ArrayList<>();
@@ -691,7 +636,6 @@ public class MapsActivity extends AppCompatActivity {
                     String origin = arr.optString(2, "").trim();
                     double lon = arr.isNull(5) ? 0.0 : arr.getDouble(5);
                     double lat = arr.isNull(6) ? 0.0 : arr.getDouble(6);
-
                     if (callsign.toLowerCase().contains(query.toLowerCase()) ||
                             origin.toLowerCase().contains(query.toLowerCase())) {
 
@@ -701,69 +645,53 @@ public class MapsActivity extends AppCompatActivity {
                         callsignList.add(callsign);
                     }
                 }
-
                 runOnUiThread(() -> showSearchResults(displayList, coordsList, icao24List, callsignList));
-
             } catch (Exception e) {
                 e.printStackTrace();
                 runOnUiThread(() -> showSearchStatus("Search failed. Please try again.", false));
             }
         }).start();
     }
+
     private void showSearchResults(List<String> displayList, List<double[]> coordsList, List<String> icao24List, List<String> callsignList) {
-        hideSearchStatus(); // Hide loading status
-        
+        hideSearchStatus(); 
         if (displayList.isEmpty()) {
             resultsContainer.setVisibility(View.GONE);
             showSearchStatus("No results found", false);
             return;
         }
-
-        // Update results count
         searchResultsCount.setText(displayList.size() + " result" + (displayList.size() == 1 ? "" : "s") + " found");
-        
-        // Hide no results message
-        noResultsContainer.setVisibility(View.GONE);
-        
+        noResultsContainer.setVisibility(View.GONE);        
         ArrayAdapter<String> adapter = new ArrayAdapter<>(
                 this,
                 android.R.layout.simple_list_item_1,
                 displayList
         );
-
         resultsList.setAdapter(adapter);
         resultsContainer.setVisibility(View.VISIBLE);
-
         resultsList.setOnItemClickListener((parent, view, position, id) -> {
             double[] coords = coordsList.get(position);
             double lat = coords[0];
             double lon = coords[1];
             String icao24 = icao24List.get(position);
             String callsign = callsignList.get(position);
-
             if (lat == 0 && lon == 0) {
                 showSearchStatus("No coordinates available", false);
                 return;
             }
-
             MapView map = findViewById(R.id.map);
             IMapController controller = map.getController();
             controller.setZoom(8.0);
             GeoPoint target = new GeoPoint(lat, lon);
             controller.animateTo(target);
-
             resultsContainer.setVisibility(View.GONE);
             hideSearchStatus();
-
-            // Attempt to open the corresponding marker's info
             tryOpenMarkerAfterMove(icao24, callsign, target, 0);
         });
     }
 
-    // Tries to open the marker panel for a plane by icao24, retrying briefly if marker not yet present
     private void tryOpenMarkerAfterMove(String icao24, String callsign, GeoPoint target, int attempt) {
         if (icao24 == null || icao24.isEmpty()) return;
-
         Marker m = overlayManager.getMarker(icao24);
         if (m != null) {
             selectedPLane = icao24;
@@ -771,15 +699,30 @@ public class MapsActivity extends AppCompatActivity {
             handleMarkerClick(icao24, callsign != null ? callsign.trim() : "", m.getPosition());
             return;
         }
-
-            // Not present yet: trigger a refresh and retry a few times
         if (attempt == 0) {
             getPlanesWithValidToken();
         }
-
         if (attempt < 10) {
             handler.postDelayed(() -> tryOpenMarkerAfterMove(icao24, callsign, target, attempt + 1), 300);
         }
+    }
+
+    private void showSearchStatus(String message, boolean showProgress) {
+        searchStatusText.setText(message);
+        searchStatusContainer.setVisibility(View.VISIBLE);
+        if (showProgress) {
+            searchProgressBar.setVisibility(View.VISIBLE);
+        } else {
+            searchProgressBar.setVisibility(View.GONE);
+        }
+        if (!showProgress) {
+            handler.postDelayed(this::hideSearchStatus, 3000);
+        }
+    }
+    
+    private void hideSearchStatus() {
+        searchStatusContainer.setVisibility(View.GONE);
+        searchProgressBar.setVisibility(View.GONE);
     }
 
     @Override
@@ -806,26 +749,4 @@ public class MapsActivity extends AppCompatActivity {
         handler.removeCallbacks(updateTask);
         client.dispatcher().cancelAll();
     }
-
-    // Helper methods for search status management
-    private void showSearchStatus(String message, boolean showProgress) {
-        searchStatusText.setText(message);
-        searchStatusContainer.setVisibility(View.VISIBLE);
-        if (showProgress) {
-            searchProgressBar.setVisibility(View.VISIBLE);
-        } else {
-            searchProgressBar.setVisibility(View.GONE);
-        }
-        
-        // Auto-hide status messages after 3 seconds (except for loading states)
-        if (!showProgress) {
-            handler.postDelayed(this::hideSearchStatus, 3000);
-        }
-    }
-    
-    private void hideSearchStatus() {
-        searchStatusContainer.setVisibility(View.GONE);
-        searchProgressBar.setVisibility(View.GONE);
-    }
-
 }

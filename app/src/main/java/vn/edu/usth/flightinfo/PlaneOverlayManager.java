@@ -24,7 +24,6 @@ public class PlaneOverlayManager {
     public interface PlaneMarkerClickHandler {
         void onPlaneMarkerClick(String icao24, String callsign, GeoPoint position);
     }
-
     private final Context context;
     private final MapView mapView;
     private final PlaneMarkerClickHandler clickHandler;
@@ -174,5 +173,3 @@ public class PlaneOverlayManager {
         mapView.invalidate();
     }
 }
-
-

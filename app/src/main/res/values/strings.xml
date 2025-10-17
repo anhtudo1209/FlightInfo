@@ -1,5 +1,6 @@
 <resources>
     <string name="app_name">FlightInfo</string>
-    <!-- TODO: Remove or change this placeholder text -->
-    <string name="hello_blank_fragment">Hello blank fragment</string>
+    <string name="aviationstack_key">4f9fc2f6e6718f86805710054b5caa42</string>
+    <string name="opensky_client_id">doanhtu12091-api-client</string>
+    <string name="opensky_client_secret">WRUkhl4wQStpg1zvhb3STKJLHfEqTZhu</string>
 </resources>

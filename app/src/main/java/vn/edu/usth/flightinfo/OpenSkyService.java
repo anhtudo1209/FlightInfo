@@ -41,14 +41,12 @@ public class OpenSkyService {
             public void onTokenReady(String token) {
                 fetchPlanes(box, token, callback);
             }
-
             @Override
             public void onError(Exception e) {
                 callback.onError(e);
             }
         });
     }
-
     private void fetchPlanes(BoundingBox box, String token, StatesCallback callback) {
         double lamin = box.getLatSouth();
         double lamax = box.getLatNorth();
@@ -62,11 +60,18 @@ public class OpenSkyService {
             public void onFailure(Call call, IOException e) {
                 callback.onError(e);
             }
-
             @Override
             public void onResponse(Call call, Response response) throws IOException {
                 if (!response.isSuccessful()) {
-                    callback.onError(new IOException("API error code=" + response.code()));
+                    String errorMsg;
+                    if (response.code() == 503) {
+                        errorMsg = "OpenSky API is temporarily unavailable. Please try again later.";
+                    } else if (response.code() == 429) {
+                        errorMsg = "Too many requests. Please wait a moment.";
+                    } else {
+                        errorMsg = "API error code=" + response.code();
+                    }
+                    callback.onError(new IOException(errorMsg));
                     return;
                 }
                 try {
@@ -87,14 +92,13 @@ public class OpenSkyService {
             public void onTokenReady(String token) {
                 fetchTrack(icao24, token, callback);
             }
-
             @Override
             public void onError(Exception e) {
                 callback.onError(e);
             }
         });
     }
-
+    
     private void fetchTrack(String icao24, String token, TrackCallback callback) {
         String url = "https://opensky-network.org/api/tracks/all" + "?icao24=" + icao24 + "&time=0";
         Request request = new Request.Builder().url(url).addHeader("Authorization", "Bearer " + token).build();
@@ -103,7 +107,6 @@ public class OpenSkyService {
             public void onFailure(Call call, IOException e) {
                 callback.onError(e);
             }
-
             @Override
             public void onResponse(Call call, Response response) throws IOException {
                 if (!response.isSuccessful()) {

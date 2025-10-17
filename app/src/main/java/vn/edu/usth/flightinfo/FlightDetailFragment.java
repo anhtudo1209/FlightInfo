@@ -20,9 +20,7 @@ public class FlightDetailFragment extends BottomSheetDialogFragment {
 
     private static final String ARG_FLIGHT_JSON = "arg_flight_json";
 
-    // header + quick fields
     private TextView textBasicInfo, textAirline, textRoute, textProgress, textAlt, textSpeed, textReg;
-    // structured detail fields (same ids as layout)
     private TextView depAirport, depCodes, depTerminal, depBaggage, depTimes, depRunways;
     private TextView arrAirport, arrCodes, arrTerminal, arrBaggage, arrTimes, arrRunways;
     private TextView flightNumber, flightCodeshared, airlineName;
@@ -41,16 +39,13 @@ public class FlightDetailFragment extends BottomSheetDialogFragment {
     @Override
     public Dialog onCreateDialog(@Nullable Bundle savedInstanceState) {
         BottomSheetDialog dialog = new BottomSheetDialog(requireContext(), R.style.NoDimBottomSheet);
-        // allow the dialog to expand to full screen later
         dialog.setOnShowListener(d -> {
             BottomSheetDialog dlog = (BottomSheetDialog) d;
             View bottomSheet = dlog.findViewById(com.google.android.material.R.id.design_bottom_sheet);
             if (bottomSheet != null) {
-                // set full height so expanding covers the screen
                 bottomSheet.getLayoutParams().height = ViewGroup.LayoutParams.MATCH_PARENT;
                 bottomSheet.requestLayout();
                 BottomSheetBehavior<?> behavior = BottomSheetBehavior.from(bottomSheet);
-                // start collapsed; user can expand to full-screen
                 behavior.setPeekHeight((int) (getResources().getDisplayMetrics().density * 180));
                 behavior.setState(BottomSheetBehavior.STATE_COLLAPSED);
                 behavior.setSkipCollapsed(false);
@@ -102,14 +97,15 @@ public class FlightDetailFragment extends BottomSheetDialogFragment {
         liveIsGround = v.findViewById(R.id.live_isground);
         liveUpdated = v.findViewById(R.id.live_updated);
 
-        // If fragment was created with JSON, populate UI
         if (getArguments() != null && getArguments().containsKey(ARG_FLIGHT_JSON)) {
             String json = getArguments().getString(ARG_FLIGHT_JSON);
             if (json != null) {
                 try {
                     JSONObject flight = new JSONObject(json);
                     updateFromJson(flight);
-                } catch (Exception ignored) {}
+                } catch (Exception e) {
+                    android.util.Log.e("FlightDetail", "Error parsing flight JSON", e);
+                }
             } else {
                 clearFields();
             }
@@ -119,17 +115,14 @@ public class FlightDetailFragment extends BottomSheetDialogFragment {
 
         return v;
     }
-    /** Set UI fields from a flight JSONObject (Aviationstack flight object). */
+
     public void updateFromJson(@NonNull JSONObject flight) {
         if (!isAdded() || getView() == null) return;
-
         if (flight == null || flight.length() == 0) {
             clearFields();
             return;
         }
-
         try {
-            // Top-level
             String flightDate = flight.optString("flight_date", "No info");
             String flightStatus = flight.optString("flight_status", "No info");
 
@@ -173,155 +166,137 @@ public class FlightDetailFragment extends BottomSheetDialogFragment {
             String flightNumberS = flightObj != null ? flightObj.optString("number", "No info") : "No info";
             String flightIataS = flightObj != null ? flightObj.optString("iata", "No info") : "No info";
             String flightIcaoS = flightObj != null ? flightObj.optString("icao", "No info") : "No info";
-            String codesharedS = flightObj != null ? (flightObj.has("codeshared") && !flightObj.isNull("codeshared") ? flightObj.optString("codeshared","No info") : "No info") : "No info";
+            String codesharedS = "No info";
+            if (flightObj != null && flightObj.has("codeshared") && !flightObj.isNull("codeshared")) {
+                codesharedS = flightObj.optString("codeshared", "No info");
+            }
 
             String aircraftRegS = aircraft != null ? aircraft.optString("registration", "No info") : "No info";
             String aircraftIcaoS = aircraft != null ? aircraft.optString("icao", "No info") : "No info";
             String aircraftIataS = aircraft != null ? aircraft.optString("iata", "No info") : "No info";
             String aircraftModelS = aircraft != null ? aircraft.optString("model", "No info") : "No info";
 
-            // live
-            final String[] liveLat = {"No info"};
-            final String[] liveLon = {"No info"};
-            final String[] liveAltS = {"No info"};
-            final String[] liveSpeedH = {"No info"};
-            final String[] liveSpeedV = {"No info"};
-            final String[] liveHdg = {"No info"};
-            final String[] liveIsGroundS = {"No info"};
-            final String[] liveUpdatedS = {"No info"};
+            String liveLat = "No info";
+            String liveLon = "No info";
+            String liveAltS = "No info";
+            String liveSpeedH = "No info";
+            String liveHdg = "No info";
+            String liveIsGroundS = "No info";
+            String liveUpdatedS = "No info";
 
             if (live != null) {
                 double lat = live.optDouble("latitude", Double.NaN);
                 double lon = live.optDouble("longitude", Double.NaN);
-                liveLat[0] = Double.isNaN(lat) ? "No info" : String.valueOf(lat);
-                liveLon[0] = Double.isNaN(lon) ? "No info" : String.valueOf(lon);
+                liveLat = Double.isNaN(lat) ? "No info" : String.valueOf(lat);
+                liveLon = Double.isNaN(lon) ? "No info" : String.valueOf(lon);
 
                 double alt = live.optDouble("altitude", Double.NaN);
-                liveAltS[0] = Double.isNaN(alt) ? "No info" : String.valueOf(alt);
+                liveAltS = Double.isNaN(alt) ? "No info" : String.valueOf(alt);
 
                 double spdH = live.optDouble("speed_horizontal", Double.NaN);
-                liveSpeedH[0] = Double.isNaN(spdH) ? "No info" : String.valueOf(spdH);
-
-                double spdV = live.optDouble("speed_vertical", Double.NaN);
-                liveSpeedV[0] = Double.isNaN(spdV) ? "No info" : String.valueOf(spdV);
+                liveSpeedH = Double.isNaN(spdH) ? "No info" : String.valueOf(spdH);
 
                 double hdg = live.optDouble("heading", Double.NaN);
-                liveHdg[0] = Double.isNaN(hdg) ? "No info" : String.valueOf(hdg);
+                liveHdg = Double.isNaN(hdg) ? "No info" : String.valueOf(hdg);
 
                 if (live.has("is_ground")) {
-                    liveIsGroundS[0] = String.valueOf(live.optBoolean("is_ground", false));
+                    liveIsGroundS = String.valueOf(live.optBoolean("is_ground", false));
                 }
 
-                liveUpdatedS[0] = live.optString("updated", "No info");
+                liveUpdatedS = live.optString("updated", "No info");
             }
 
-            // build display strings
             String header = "Flight " + flightNumberS + " (" + flightDate + ")";
             String route = depAirportS + " → " + arrAirportS;
             String progress = "Status: " + flightStatus;
 
-            // update UI
-            if (getActivity() == null) return;
-            getActivity().runOnUiThread(() -> {
-                try {
-                    if (textBasicInfo != null) textBasicInfo.setText(header);
-                    if (textAirline != null) textAirline.setText(airlineNameS);
-                    if (textRoute != null) textRoute.setText(route);
-                    if (textProgress != null) textProgress.setText(progress);
-                    if (textAlt != null) textAlt.setText("ALTITUDE\n" + (liveAltS[0].equals("No info") ? "-" : liveAltS[0]));
-                    if (textSpeed != null) textSpeed.setText("SPEED\n" + (liveSpeedH[0].equals("No info") ? "-" : liveSpeedH[0]));
-                    if (textReg != null) textReg.setText("REG\n" + (aircraftRegS.equals("No info") ? "-" : aircraftRegS));
+            textBasicInfo.setText(header);
+            textAirline.setText(airlineNameS);
+            textRoute.setText(route);
+            textProgress.setText(progress);
+            textAlt.setText("ALTITUDE\n" + (liveAltS.equals("No info") ? "-" : liveAltS));
+            textSpeed.setText("SPEED\n" + (liveSpeedH.equals("No info") ? "-" : liveSpeedH));
+            textReg.setText("REG\n" + (aircraftRegS.equals("No info") ? "-" : aircraftRegS));
 
-                    // structured fields
-                    if (depAirport != null) depAirport.setText("Airport: " + depAirportS);
-                    if (depCodes != null) depCodes.setText("IATA / ICAO: " + depIata + " / " + depIcao);
-                    if (depTerminal != null) depTerminal.setText("Terminal / Gate: " + depTerminalS + " / " + depGate);
-                    if (depBaggage != null) depBaggage.setText("Baggage / Delay: " + depBaggageS + " / " + depDelay);
-                    if (depTimes != null) depTimes.setText("Scheduled / Estimated / Actual: " + depScheduled + " / " + depEstimated + " / " + depActual);
-                    if (depRunways != null) depRunways.setText("Estimated runway / Actual runway: " + depEstRunway + " / " + depActRunway);
+            depAirport.setText("Airport: " + depAirportS);
+            depCodes.setText("IATA / ICAO: " + depIata + " / " + depIcao);
+            depTerminal.setText("Terminal / Gate: " + depTerminalS + " / " + depGate);
+            depBaggage.setText("Baggage / Delay: " + depBaggageS + " / " + depDelay);
+            depTimes.setText("Scheduled / Estimated / Actual: " + depScheduled + " / " + depEstimated + " / " + depActual);
+            depRunways.setText("Estimated runway / Actual runway: " + depEstRunway + " / " + depActRunway);
 
-                    if (arrAirport != null) arrAirport.setText("Airport: " + arrAirportS);
-                    if (arrCodes != null) arrCodes.setText("IATA / ICAO: " + arrIata + " / " + arrIcao);
-                    if (arrTerminal != null) arrTerminal.setText("Terminal / Gate: " + arrTerminalS + " / " + arrGate);
-                    if (arrBaggage != null) arrBaggage.setText("Baggage / Delay: " + arrBaggageS + " / " + arrDelay);
-                    if (arrTimes != null) arrTimes.setText("Scheduled / Estimated / Actual: " + arrScheduled + " / " + arrEstimated + " / " + arrActual);
-                    if (arrRunways != null) arrRunways.setText("Estimated runway / Actual runway: " + arrEstRunway + " / " + arrActRunway);
+            arrAirport.setText("Airport: " + arrAirportS);
+            arrCodes.setText("IATA / ICAO: " + arrIata + " / " + arrIcao);
+            arrTerminal.setText("Terminal / Gate: " + arrTerminalS + " / " + arrGate);
+            arrBaggage.setText("Baggage / Delay: " + arrBaggageS + " / " + arrDelay);
+            arrTimes.setText("Scheduled / Estimated / Actual: " + arrScheduled + " / " + arrEstimated + " / " + arrActual);
+            arrRunways.setText("Estimated runway / Actual runway: " + arrEstRunway + " / " + arrActRunway);
 
-                    if (flightNumber != null) flightNumber.setText("Number / IATA / ICAO: " + flightNumberS + " / " + flightIataS + " / " + flightIcaoS);
-                    if (flightCodeshared != null) flightCodeshared.setText("Codeshared: " + codesharedS);
-                    if (airlineName != null) airlineName.setText("Airline: " + airlineNameS + " (IATA: " + airlineIataS + " / ICAO: " + airlineIcaoS + ")");
+            flightNumber.setText("Number / IATA / ICAO: " + flightNumberS + " / " + flightIataS + " / " + flightIcaoS);
+            flightCodeshared.setText("Codeshared: " + codesharedS);
+            airlineName.setText("Airline: " + airlineNameS + " (IATA: " + airlineIataS + " / ICAO: " + airlineIcaoS + ")");
 
-                    if (aircraftReg != null) aircraftReg.setText("Registration: " + aircraftRegS);
-                    if (aircraftCodes != null) aircraftCodes.setText("ICAO / IATA: " + aircraftIcaoS + " / " + aircraftIataS);
-                    if (aircraftModel != null) aircraftModel.setText("Model: " + aircraftModelS);
+            aircraftReg.setText("Registration: " + aircraftRegS);
+            aircraftCodes.setText("ICAO / IATA: " + aircraftIcaoS + " / " + aircraftIataS);
+            aircraftModel.setText("Model: " + aircraftModelS);
 
-                    if (liveLatlon != null) liveLatlon.setText("Lat / Lon: " + liveLat[0] + " / " + liveLon[0]);
-                    if (liveAlt != null) liveAlt.setText("Altitude: " + (liveAltS[0].equals("No info") ? "-" : liveAltS[0]));
-                    if (liveSpeed != null) liveSpeed.setText("Speed H / V: " + (liveSpeedH[0].equals("No info") ? "-" : liveSpeedH[0]) + " / " + (liveSpeedV[0].equals("No info") ? "-" : liveSpeedV[0]));
-                    if (liveHeading != null) liveHeading.setText("Heading: " + liveHdg[0]);
-                    if (liveIsGround != null) liveIsGround.setText("IsGround: " + liveIsGroundS[0]);
-                    if (liveUpdated != null) liveUpdated.setText("Updated: " + liveUpdatedS[0]);
-                } catch (Exception ignored) {}
-            });
+            liveLatlon.setText("Lat / Lon: " + liveLat + " / " + liveLon);
+            liveAlt.setText("Altitude: " + (liveAltS.equals("No info") ? "-" : liveAltS));
+            liveSpeed.setText("Speed H: " + (liveSpeedH.equals("No info") ? "-" : liveSpeedH));
+            liveHeading.setText("Heading: " + liveHdg);
+            liveIsGround.setText("IsGround: " + liveIsGroundS);
+            liveUpdated.setText("Updated: " + liveUpdatedS);
 
-        } catch (Exception ignored) {}
+        } catch (Exception e) {
+            android.util.Log.e("FlightDetail", "Error updating flight details", e);
+        }
     }
     public void clearFields() {
-        // Only try to touch views when the fragment is added and view exists
         if (!isAdded() || getView() == null) return;
+        textBasicInfo.setText("Flight: -");
+        textAirline.setText("-");
+        textRoute.setText("- → -");
+        textProgress.setText("Status: -");
+        textAlt.setText("ALTITUDE\n-");
+        textSpeed.setText("SPEED\n-");
+        textReg.setText("REG\n-");
 
-        if (getActivity() == null) return;
-        getActivity().runOnUiThread(() -> {
-            try {
-                if (textBasicInfo != null) textBasicInfo.setText("Flight: -");
-                if (textAirline != null) textAirline.setText("-");
-                if (textRoute != null) textRoute.setText("- → -");
-                if (textProgress != null) textProgress.setText("Status: -");
-                if (textAlt != null) textAlt.setText("ALTITUDE\n-");
-                if (textSpeed != null) textSpeed.setText("SPEED\n-");
-                if (textReg != null) textReg.setText("REG\n-");
+        depAirport.setText("Airport: -");
+        depCodes.setText("IATA / ICAO: - / -");
+        depTerminal.setText("Terminal / Gate: - / -");
+        depBaggage.setText("Baggage / Delay: - / -");
+        depTimes.setText("Scheduled / Estimated / Actual: - / - / -");
+        depRunways.setText("Estimated runway / Actual runway: - / -");
 
-                if (depAirport != null) depAirport.setText("Airport: -");
-                if (depCodes != null) depCodes.setText("IATA / ICAO: - / -");
-                if (depTerminal != null) depTerminal.setText("Terminal / Gate: - / -");
-                if (depBaggage != null) depBaggage.setText("Baggage / Delay: - / -");
-                if (depTimes != null) depTimes.setText("Scheduled / Estimated / Actual: - / - / -");
-                if (depRunways != null) depRunways.setText("Estimated runway / Actual runway: - / -");
+        arrAirport.setText("Airport: -");
+        arrCodes.setText("IATA / ICAO: - / -");
+        arrTerminal.setText("Terminal / Gate: - / -");
+        arrBaggage.setText("Baggage / Delay: - / -");
+        arrTimes.setText("Scheduled / Estimated / Actual: - / - / -");
+        arrRunways.setText("Estimated runway / Actual runway: - / -");
 
-                if (arrAirport != null) arrAirport.setText("Airport: -");
-                if (arrCodes != null) arrCodes.setText("IATA / ICAO: - / -");
-                if (arrTerminal != null) arrTerminal.setText("Terminal / Gate: - / -");
-                if (arrBaggage != null) arrBaggage.setText("Baggage / Delay: - / -");
-                if (arrTimes != null) arrTimes.setText("Scheduled / Estimated / Actual: - / - / -");
-                if (arrRunways != null) arrRunways.setText("Estimated runway / Actual runway: - / -");
+        flightNumber.setText("Number / IATA / ICAO: - / - / -");
+        flightCodeshared.setText("Codeshared: -");
+        airlineName.setText("Airline: - (IATA: - / ICAO: -)");
 
-                if (flightNumber != null) flightNumber.setText("Number / IATA / ICAO: - / - / -");
-                if (flightCodeshared != null) flightCodeshared.setText("Codeshared: -");
-                if (airlineName != null) airlineName.setText("Airline: - (IATA: - / ICAO: -)");
+        aircraftReg.setText("Registration: -");
+        aircraftCodes.setText("ICAO / IATA: - / -");
+        aircraftModel.setText("Model: -");
 
-                if (aircraftReg != null) aircraftReg.setText("Registration: -");
-                if (aircraftCodes != null) aircraftCodes.setText("ICAO / IATA: - / -");
-                if (aircraftModel != null) aircraftModel.setText("Model: -");
-
-                if (liveLatlon != null) liveLatlon.setText("Lat / Lon: - / -");
-                if (liveAlt != null) liveAlt.setText("Altitude: -");
-                if (liveSpeed != null) liveSpeed.setText("Speed H / V: - / -");
-                if (liveHeading != null) liveHeading.setText("Heading: -");
-                if (liveIsGround != null) liveIsGround.setText("IsGround: -");
-                if (liveUpdated != null) liveUpdated.setText("Updated: -");
-            } catch (Exception ignored) {}
-        });
+        liveLatlon.setText("Lat / Lon: - / -");
+        liveAlt.setText("Altitude: -");
+        liveSpeed.setText("Speed H: -");
+        liveHeading.setText("Heading: -");
+        liveIsGround.setText("IsGround: -");
+        liveUpdated.setText("Updated: -");
     }
 
     @Override
     public void onDestroyView() {
         super.onDestroyView();
-        // drop references to avoid holding onto the Activity/view hierarchy
         textBasicInfo = textAirline = textRoute = textProgress = textAlt = textSpeed = textReg = null;
-
         depAirport = depCodes = depTerminal = depBaggage = depTimes = depRunways = null;
         arrAirport = arrCodes = arrTerminal = arrBaggage = arrTimes = arrRunways = null;
-
         flightNumber = flightCodeshared = airlineName = null;
         aircraftReg = aircraftCodes = aircraftModel = null;
         liveLatlon = liveAlt = liveSpeed = liveHeading = liveIsGround = liveUpdated = null;
