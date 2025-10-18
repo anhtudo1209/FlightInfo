@@ -91,7 +91,6 @@ public class MapsActivity extends AppCompatActivity {
         Configuration.getInstance().setUserAgentValue(getPackageName());
         setContentView(R.layout.activity_maps);
 
-        // Initialize API keys and UI components. Sets up search UI and map view.
         AVIATIONSTACK_KEY = getString(R.string.aviationstack_key);
         CLIENT_ID = getString(R.string.opensky_client_id);
         CLIENT_SECRET = getString(R.string.opensky_client_secret);
@@ -114,7 +113,6 @@ public class MapsActivity extends AppCompatActivity {
         mapView = findViewById(R.id.map);
         mapView.setMultiTouchControls(true);
         mapView.getController().setZoom(9.0);
-        // Overlay manager maintains markers and delegates marker clicks back here.
         overlayManager = new PlaneOverlayManager(this, mapView, (icao24, callsign, position) -> {
             selectedPLane = icao24;
             fetchFlightTrack(icao24);
@@ -157,7 +155,6 @@ public class MapsActivity extends AppCompatActivity {
             }
         });
 
-        // When user pans/zooms, re-fetch planes in the current bounding box (debounced).
         mapView.addMapListener(new DelayedMapListener(new MapListener() {
             @Override
             public boolean onScroll(ScrollEvent event) {
@@ -171,7 +168,6 @@ public class MapsActivity extends AppCompatActivity {
             }
         }, 1000));
 
-        // Single tap clears current selection and any drawn lines.
         MapEventsReceiver mReceive = new MapEventsReceiver() {
             @Override
             public boolean singleTapConfirmedHelper(GeoPoint p) {
@@ -205,7 +201,6 @@ public class MapsActivity extends AppCompatActivity {
         @Override
         public void run() {
             if (isActive) { 
-                // Periodic refresh for plane positions
                 getPlanesWithValidToken();
                 handler.postDelayed(this, 10000);
             }
@@ -213,7 +208,6 @@ public class MapsActivity extends AppCompatActivity {
     };
 
     private void getPlanesWithValidToken() {
-        // Fetch planes from OpenSky within current map bounds; callbacks update UI on main thread
         BoundingBox box = mapView.getBoundingBox();
         openSkyService.fetchPlanesWithValidToken(box, new OpenSkyService.StatesCallback() {
             @Override
@@ -229,7 +223,6 @@ public class MapsActivity extends AppCompatActivity {
     }
     
     private void handleStatesUpdate(JSONArray states) {
-        // Update or create markers for each plane and remove markers not seen in this refresh.
         if (!isActive) return;
         try {
             Set<String> seenPlanes = new HashSet<>();
@@ -246,12 +239,10 @@ public class MapsActivity extends AppCompatActivity {
                 double speed = plane.isNull(9) ? Double.NaN : plane.optDouble(9, Double.NaN);
                 double geoAlt = plane.isNull(13) ? Double.NaN : plane.optDouble(13, Double.NaN);
                 double altToPass = !Double.isNaN(geoAlt) ? geoAlt : baroAlt;
-                // This either updates an existing marker or creates a new one in the overlay manager
                 overlayManager.updatePlaneMarker(icao24, callsign, lat, lon, heading, altToPass, speed);
                 seenPlanes.add(icao24);
                 
                 if (selectedPLane != null && selectedPLane.equals(icao24)) {
-                    // If this plane is selected, redraw track and any arrival line from cached coords
                     GeoPoint currentPos = new GeoPoint(lat, lon);
                     fetchFlightTrack(icao24);
                     JSONObject cachedFlight = flightCache.getIfFresh(icao24);
@@ -283,7 +274,6 @@ public class MapsActivity extends AppCompatActivity {
     }
 
     private void handleMarkerClick(String icao24, String callsign, GeoPoint currentPos) {
-        // Central entry when a plane is chosen (via marker click or search result selection)
         selectedPLane = icao24;
         JSONObject openSkyData = null;
         Marker marker = overlayManager.getMarker(icao24);
@@ -298,7 +288,6 @@ public class MapsActivity extends AppCompatActivity {
             }
         }
         final JSONObject finalOpenSkyData = openSkyData;
-        // Show placeholder bottom sheet immediately, then fill with cached/fetched data
         clearLines();
         try {
             FlightDetailFragment placeholder = FlightDetailFragment.newInstance("{}");
@@ -309,14 +298,12 @@ public class MapsActivity extends AppCompatActivity {
         }
         JSONObject cached = flightCache.getIfFresh(icao24);
         if (cached != null) {
-            // Use cached Aviationstack data merged with live OpenSky extras
             JSONObject arrival = cached.optJSONObject("arrival");
             processArrival(arrival, icao24, currentPos);
             JSONObject mergedData = mergeOpenSkyData(cached, finalOpenSkyData);
             showBasicInfo(icao24, mergedData);
             return;
         }
-        // Otherwise, fetch from Aviationstack then update UI
         fetchFlightInfo(callsign, icao24, currentPos, finalOpenSkyData);
     }
 
@@ -357,7 +344,6 @@ public class MapsActivity extends AppCompatActivity {
     }
 
     private void fetchFlightInfo(String callsign, String icao24, GeoPoint currentPos, JSONObject openSkyData) {
-        // Queries Aviationstack by callsign; on success, merges with OpenSky marker data and caches result.
         if (callsign == null) callsign = "";
         final String cleanCalls = cleanCallsign(callsign);
         if (cleanCalls.isEmpty() || cleanCalls.equalsIgnoreCase("UNKNOWN")) {
@@ -405,22 +391,24 @@ public class MapsActivity extends AppCompatActivity {
                         final GeoPoint finalCurrentPos = currentPos;
 
                         processArrival(finalMatch.optJSONObject("arrival"), finalIcao24, finalCurrentPos);
-                        try {
-                            FlightDetailFragment existing = getDetailSheet();
-                            if (existing != null && existing.isAdded()) {
-                                existing.updateFromJson(finalMatch);
-                            } else {
-                                FlightDetailFragment sheet = FlightDetailFragment.newInstance(finalMatch.toString());
-                                sheet.show(getSupportFragmentManager(), "flight_detail");
-                            }
-                        } catch (Exception ignored) {}
+                        runOnUiThread(() -> {
+                            try {
+                                FlightDetailFragment existing = getDetailSheet();
+                                if (existing != null && existing.isAdded()) {
+                                    existing.updateFromJson(finalMatch);
+                                } else {
+                                    FlightDetailFragment sheet = FlightDetailFragment.newInstance(finalMatch.toString());
+                                    sheet.show(getSupportFragmentManager(), "flight_detail");
+                                }
+                            } catch (Exception ignored) {}
+                        });
                         return;
                     } else {
-                        showNoAviationstackRecord();
+                        runOnUiThread(() -> showNoAviationstackRecord());
                     }
                 } catch (Exception e) {
                     Log.e("Aviationstack", "Parse error", e);
-                    showNoAviationstackRecord();
+                    runOnUiThread(() -> showNoAviationstackRecord());
                 }
             }
         });
@@ -440,7 +428,6 @@ public class MapsActivity extends AppCompatActivity {
     }
 
     private void fetchAirportCoords(String icao24, GeoPoint currentPos, String iata, String icao) {
-        // Resolves arrival airport coordinates (from cache or Aviationstack) and draws dashed line.
         String key = (iata != null && !iata.isEmpty()) ? iata : (icao != null && !icao.isEmpty() ? icao : null);
         if (key == null) {
             Log.w("Aviationstack", "No IATA/ICAO to lookup for " + icao24);
@@ -536,7 +523,6 @@ public class MapsActivity extends AppCompatActivity {
             }
         });
     }
-    
     private void processArrival(JSONObject arrival, String icao24, GeoPoint currentPos) {
         if (arrival != null) {
             String airportIata = arrival.optString("iata", "");
@@ -670,7 +656,6 @@ public class MapsActivity extends AppCompatActivity {
     }
 
     private void showSearchResults(List<String> displayList, List<double[]> coordsList, List<String> icao24List, List<String> callsignList) {
-        // Binds search results to ListView; on tap, animates map and attempts to open that plane's marker.
         hideSearchStatus(); 
         if (displayList.isEmpty()) {
             resultsContainer.setVisibility(View.GONE);
@@ -703,13 +688,11 @@ public class MapsActivity extends AppCompatActivity {
             controller.animateTo(target);
             resultsContainer.setVisibility(View.GONE);
             hideSearchStatus();
-            // Start polling for the marker; first attempt triggers an immediate refresh
             tryOpenMarkerAfterMove(icao24, callsign, target, 0);
         });
     }
 
     private void tryOpenMarkerAfterMove(String icao24, String callsign, GeoPoint target, int attempt) {
-        // Polls overlay for the plane marker after map moves. If not present, refresh planes and retry.
         if (icao24 == null || icao24.isEmpty()) return;
         Marker m = overlayManager.getMarker(icao24);
         if (m != null) {

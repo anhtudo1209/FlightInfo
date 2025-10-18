@@ -1,6 +1,6 @@
 <resources>
     <string name="app_name">FlightInfo</string>
-    <string name="aviationstack_key">4f9fc2f6e6718f86805710054b5caa42</string>
+    <string name="aviationstack_key">88c9dbee9f403f101598bb40f2b7eec5</string>
     <string name="opensky_client_id">doanhtu12091-api-client</string>
     <string name="opensky_client_secret">WRUkhl4wQStpg1zvhb3STKJLHfEqTZhu</string>
 </resources>
