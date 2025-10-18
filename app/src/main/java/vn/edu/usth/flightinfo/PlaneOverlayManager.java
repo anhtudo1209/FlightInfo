@@ -19,6 +19,12 @@ import androidx.core.content.res.ResourcesCompat;
 
 /**
  * Manages plane markers and polylines on the MapView.
+ *
+ * Lifecycle summary:
+ * - planeMarkers: in-memory map of ICAO24 -> Marker; created/updated by updatePlaneMarker().
+ * - getMarker(icao24): lookup used by selection flows to retrieve a plane's marker.
+ * - removeMarkersNotIn(seen): cleans up markers not present in the latest refresh.
+ * - drawFlightPath/drawDashedLine: draws current/future paths, cleared by clearLines().
  */
 public class PlaneOverlayManager {
     public interface PlaneMarkerClickHandler {
@@ -39,11 +45,13 @@ public class PlaneOverlayManager {
     }
 
     public Marker getMarker(String icao24) {
+        // Read access for selection flows (e.g., after search or marker click)
         return planeMarkers.get(icao24);
     }
 
     public void updatePlaneMarker(String icao24, String title, double lat, double lon, Double heading,
                                   double geoAlt, double speed) {
+        // Updates existing marker position and metadata, or creates and stores a new marker if missing.
         GeoPoint point = new GeoPoint(lat, lon);
         Marker marker;
         if (planeMarkers.containsKey(icao24)) {
@@ -105,7 +113,7 @@ public class PlaneOverlayManager {
             });
 
             mapView.getOverlays().add(marker);
-            planeMarkers.put(icao24, marker);
+            planeMarkers.put(icao24, marker); // write into the ICAO24 -> Marker map
         }
     }
 
@@ -160,6 +168,7 @@ public class PlaneOverlayManager {
     }
 
     public void removeMarkersNotIn(java.util.Set<String> seenIcao24) {
+        // Remove markers that were not present in the latest OpenSky refresh
         java.util.Iterator<Map.Entry<String, Marker>> it = planeMarkers.entrySet().iterator();
         while (it.hasNext()) {
             Map.Entry<String, Marker> e = it.next();
